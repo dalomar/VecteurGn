@@ -260,6 +260,33 @@ async def get_total_balance():
         "EUR": balance_eur
     }
 
+@api_router.get("/stats/balance-per-bus")
+async def get_balance_per_bus():
+    # Get all buses
+    buses = await db.buses.find().to_list(1000)
+    
+    balances = []
+    for bus in buses:
+        bus_id = bus["_id"]
+        
+        # Get all transactions for this bus
+        transactions = await db.transactions.find({"busId": bus_id}).to_list(1000)
+        
+        total_recettes = sum(t["amount"] for t in transactions if t["type"] == "recette")
+        total_depenses = sum(t["amount"] for t in transactions if t["type"] == "depense")
+        balance = total_recettes - total_depenses
+        
+        balances.append({
+            "id": str(bus_id),
+            "name": bus["name"],
+            "currency": bus["currency"],
+            "recettes": total_recettes,
+            "depenses": total_depenses,
+            "balance": balance
+        })
+    
+    return balances
+
 @api_router.get("/stats/analytics")
 async def get_analytics(busId: Optional[str] = None, period: Literal["day", "week", "month"] = "month"):
     # Calculate date range

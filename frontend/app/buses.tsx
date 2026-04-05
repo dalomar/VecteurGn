@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useStore, Bus } from '../store';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 
 export default function BusesScreen() {
   const [modalVisible, setModalVisible] = useState(false);
@@ -52,7 +53,12 @@ export default function BusesScreen() {
 
   const handleSubmit = async () => {
     if (!name || !registration || !dailyTarget) {
-      Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires');
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Veuillez remplir tous les champs obligatoires',
+        position: 'top',
+      });
       return;
     }
 
@@ -67,16 +73,31 @@ export default function BusesScreen() {
 
       if (editingBus) {
         await updateBus(editingBus.id, busData);
-        Alert.alert('Succès', 'Bus modifié avec succès!');
+        Toast.show({
+          type: 'success',
+          text1: 'Succès',
+          text2: 'Bus modifié avec succès!',
+          position: 'top',
+        });
       } else {
         await createBus(busData);
-        Alert.alert('Succès', 'Bus ajouté avec succès!');
+        Toast.show({
+          type: 'success',
+          text1: 'Succès',
+          text2: 'Bus ajouté avec succès!',
+          position: 'top',
+        });
       }
 
       setModalVisible(false);
       fetchBuses();
     } catch (error) {
-      Alert.alert('Erreur', 'Une erreur est survenue');
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Une erreur est survenue',
+        position: 'top',
+      });
     }
   };
 
@@ -92,10 +113,20 @@ export default function BusesScreen() {
           onPress: async () => {
             try {
               await deleteBus(bus.id);
-              Alert.alert('Succès', 'Bus supprimé avec succès!');
+              Toast.show({
+                type: 'success',
+                text1: 'Succès',
+                text2: 'Bus supprimé avec succès!',
+                position: 'top',
+              });
               fetchBuses();
             } catch (error) {
-              Alert.alert('Erreur', 'Impossible de supprimer le bus');
+              Toast.show({
+                type: 'error',
+                text1: 'Erreur',
+                text2: 'Impossible de supprimer le bus',
+                position: 'top',
+              });
             }
           },
         },
@@ -286,6 +317,8 @@ export default function BusesScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      
+      <Toast />
     </SafeAreaView>
   );
 }

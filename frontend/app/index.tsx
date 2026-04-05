@@ -7,13 +7,13 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  ActivityIndicator,
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 
 type Period = 'day' | 'week' | 'month' | 'year';
 
@@ -33,11 +33,11 @@ export default function HomeScreen() {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
 
-  const { ranking, balance, buses, fetchRanking, fetchBalance, fetchBuses, createTransaction } = useStore();
+  const { ranking, busBalances, buses, fetchRanking, fetchBusBalances, fetchBuses, createTransaction } = useStore();
 
   useEffect(() => {
     fetchBuses();
-    fetchBalance();
+    fetchBusBalances();
     fetchRanking(selectedPeriod);
   }, []);
 
@@ -47,7 +47,12 @@ export default function HomeScreen() {
 
   const handleQuickTransaction = async () => {
     if (!selectedBusId || !category || !amount) {
-      alert('Veuillez remplir tous les champs obligatoires');
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Veuillez remplir tous les champs obligatoires',
+        position: 'top',
+      });
       return;
     }
 
@@ -69,12 +74,22 @@ export default function HomeScreen() {
       setModalVisible(false);
 
       // Refresh data
-      fetchBalance();
+      fetchBusBalances();
       fetchRanking(selectedPeriod);
 
-      alert('Transaction ajoutée avec succès!');
+      Toast.show({
+        type: 'success',
+        text1: 'Succès',
+        text2: 'Transaction ajoutée avec succès!',
+        position: 'top',
+      });
     } catch (error) {
-      alert('Erreur lors de l\'ajout de la transaction');
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: "Erreur lors de l'ajout de la transaction",
+        position: 'top',
+      });
     }
   };
 
@@ -106,27 +121,50 @@ export default function HomeScreen() {
           <View style={styles.headerIcon}>
             <Ionicons name="bus" size={32} color="#3B82F6" />
           </View>
-          <Text style={styles.headerTitle}>Gestion de Bus</Text>
+          <Text style={styles.headerTitle}>Vecteur GN</Text>
           <Text style={styles.headerSubtitle}>Tableau de bord</Text>
         </View>
 
-        {/* Balance Section */}
+        {/* Balance Section - Par Bus */}
         <View style={styles.balanceSection}>
-          <Text style={styles.sectionTitle}>💰 Solde Total</Text>
-          <View style={styles.balanceCards}>
-            <View style={styles.balanceCard}>
-              <Text style={styles.balanceCurrency}>GNF</Text>
-              <Text style={[styles.balanceAmount, balance.GNF >= 0 ? styles.positive : styles.negative]}>
-                {formatCurrency(balance.GNF, '')}
-              </Text>
+          <Text style={styles.sectionTitle}>💰 Solde par Bus</Text>
+          {busBalances.length === 0 ? (
+            <View style={styles.emptyBalanceCard}>
+              <Text style={styles.emptyBalanceText}>Aucun bus enregistré</Text>
             </View>
-            <View style={styles.balanceCard}>
-              <Text style={styles.balanceCurrency}>EUR</Text>
-              <Text style={[styles.balanceAmount, balance.EUR >= 0 ? styles.positive : styles.negative]}>
-                {formatCurrency(balance.EUR, '')}
-              </Text>
-            </View>
-          </View>
+          ) : (
+            busBalances.map((busBalance) => (
+              <View key={busBalance.id} style={styles.busBalanceCard}>
+                <View style={styles.busBalanceHeader}>
+                  <Ionicons name="bus" size={20} color="#3B82F6" />
+                  <Text style={styles.busBalanceName}>{busBalance.name}</Text>
+                </View>
+                <View style={styles.busBalanceStats}>
+                  <View style={styles.busBalanceStat}>
+                    <Text style={styles.busBalanceLabel}>Solde</Text>
+                    <Text style={[
+                      styles.busBalanceValue,
+                      busBalance.balance >= 0 ? styles.positive : styles.negative
+                    ]}>
+                      {formatCurrency(busBalance.balance, busBalance.currency)}
+                    </Text>
+                  </View>
+                  <View style={styles.busBalanceStat}>
+                    <Text style={styles.busBalanceLabel}>Recettes</Text>
+                    <Text style={[styles.busBalanceValue, styles.recetteColor]}>
+                      {formatCurrency(busBalance.recettes, busBalance.currency)}
+                    </Text>
+                  </View>
+                  <View style={styles.busBalanceStat}>
+                    <Text style={styles.busBalanceLabel}>Dépenses</Text>
+                    <Text style={[styles.busBalanceValue, styles.depenseColor]}>
+                      {formatCurrency(busBalance.depenses, busBalance.currency)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ))
+          )}
         </View>
 
         {/* Quick Actions */}
@@ -195,40 +233,65 @@ export default function HomeScreen() {
               <Text style={styles.emptySubtext}>Ajoutez votre premier bus dans l'onglet Bus</Text>
             </View>
           ) : (
-            ranking.map((item, index) => (
-              <View key={item.id} style={styles.rankCard}>
-                <View style={styles.rankHeader}>
-                  <Text style={styles.rankIcon}>{getRankIcon(index)}</Text>
-                  <View style={styles.rankInfo}>
-                    <Text style={styles.rankName}>{item.name}</Text>
-                    <Text style={styles.rankRegistration}>Objectif: {formatCurrency(item.target, item.currency)}</Text>
+            ranking.map((item, index) => {
+              const busBalance = busBalances.find(b => b.id === item.id);
+              return (
+                <View key={item.id} style={styles.rankCard}>
+                  <View style={styles.rankHeader}>
+                    <Text style={styles.rankIcon}>{getRankIcon(index)}</Text>
+                    <View style={styles.rankInfo}>
+                      <Text style={styles.rankName}>{item.name}</Text>
+                      <Text style={styles.rankRegistration}>Objectif: {formatCurrency(item.target, item.currency)}</Text>
+                    </View>
+                    <View style={styles.rankStats}>
+                      <Text style={styles.rankRevenue}>{formatCurrency(item.revenue, item.currency)}</Text>
+                      <Text
+                        style={[
+                          styles.rankPercentage,
+                          { color: getProgressColor(item.percentage) },
+                        ]}
+                      >
+                        {item.percentage.toFixed(0)}%
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.rankStats}>
-                    <Text style={styles.rankRevenue}>{formatCurrency(item.revenue, item.currency)}</Text>
-                    <Text
+                  <View style={styles.progressBar}>
+                    <View
                       style={[
-                        styles.rankPercentage,
-                        { color: getProgressColor(item.percentage) },
+                        styles.progressFill,
+                        {
+                          width: `${Math.min(item.percentage, 100)}%`,
+                          backgroundColor: getProgressColor(item.percentage),
+                        },
                       ]}
-                    >
-                      {item.percentage.toFixed(0)}%
-                    </Text>
+                    />
                   </View>
+                  {/* Total Recettes et Dépenses */}
+                  {busBalance && (
+                    <View style={styles.rankFooter}>
+                      <View style={styles.rankFooterItem}>
+                        <Text style={styles.rankFooterLabel}>Recettes:</Text>
+                        <Text style={[styles.rankFooterValue, styles.recetteColor]}>
+                          {formatCurrency(busBalance.recettes, item.currency)}
+                        </Text>
+                      </View>
+                      <View style={styles.rankFooterItem}>
+                        <Text style={styles.rankFooterLabel}>Dépenses:</Text>
+                        <Text style={[styles.rankFooterValue, styles.depenseColor]}>
+                          {formatCurrency(busBalance.depenses, item.currency)}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
                 </View>
-                <View style={styles.progressBar}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      {
-                        width: `${Math.min(item.percentage, 100)}%`,
-                        backgroundColor: getProgressColor(item.percentage),
-                      },
-                    ]}
-                  />
-                </View>
-              </View>
-            ))
+              );
+            })
           )}
+        </View>
+
+        {/* Footer - Propriétaire */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Développé par Oumar DRAMÉ</Text>
         </View>
       </ScrollView>
 
@@ -338,6 +401,8 @@ export default function HomeScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      
+      <Toast />
     </SafeAreaView>
   );
 }
@@ -379,25 +444,40 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginBottom: 12,
   },
-  balanceCards: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  balanceCard: {
-    flex: 1,
+  busBalanceCard: {
     backgroundColor: '#1F2937',
-    padding: 16,
+    padding: 14,
     borderRadius: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#374151',
   },
-  balanceCurrency: {
-    fontSize: 14,
+  busBalanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  busBalanceName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  busBalanceStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  busBalanceStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  busBalanceLabel: {
+    fontSize: 11,
     color: '#9CA3AF',
     marginBottom: 4,
   },
-  balanceAmount: {
-    fontSize: 24,
+  busBalanceValue: {
+    fontSize: 13,
     fontWeight: 'bold',
   },
   positive: {
@@ -405,6 +485,24 @@ const styles = StyleSheet.create({
   },
   negative: {
     color: '#EF4444',
+  },
+  recetteColor: {
+    color: '#10B981',
+  },
+  depenseColor: {
+    color: '#EF4444',
+  },
+  emptyBalanceCard: {
+    backgroundColor: '#1F2937',
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  emptyBalanceText: {
+    fontSize: 14,
+    color: '#9CA3AF',
   },
   quickActions: {
     padding: 16,
@@ -435,7 +533,7 @@ const styles = StyleSheet.create({
   },
   rankingSection: {
     padding: 16,
-    paddingBottom: 32,
+    paddingBottom: 16,
   },
   rankingHeader: {
     marginBottom: 12,
@@ -512,10 +610,40 @@ const styles = StyleSheet.create({
     backgroundColor: '#374151',
     borderRadius: 4,
     overflow: 'hidden',
+    marginBottom: 10,
   },
   progressFill: {
     height: '100%',
     borderRadius: 4,
+  },
+  rankFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#374151',
+  },
+  rankFooterItem: {
+    alignItems: 'center',
+  },
+  rankFooterLabel: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginBottom: 4,
+  },
+  rankFooterValue: {
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  footer: {
+    padding: 20,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#374151',
+  },
+  footerText: {
+    fontSize: 12,
+    color: '#6B7280',
   },
   emptyState: {
     alignItems: 'center',

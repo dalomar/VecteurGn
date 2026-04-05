@@ -33,11 +33,21 @@ export interface RankingItem {
   percentage: number;
 }
 
+export interface BusBalance {
+  id: string;
+  name: string;
+  currency: string;
+  recettes: number;
+  depenses: number;
+  balance: number;
+}
+
 interface AppState {
   buses: Bus[];
   transactions: Transaction[];
   ranking: RankingItem[];
   balance: { GNF: number; EUR: number };
+  busBalances: BusBalance[];
   loading: boolean;
   
   // Bus actions
@@ -55,6 +65,7 @@ interface AppState {
   // Stats actions
   fetchRanking: (period: 'day' | 'week' | 'month' | 'year') => Promise<void>;
   fetchBalance: () => Promise<void>;
+  fetchBusBalances: () => Promise<void>;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -62,6 +73,7 @@ export const useStore = create<AppState>((set, get) => ({
   transactions: [],
   ranking: [],
   balance: { GNF: 0, EUR: 0 },
+  busBalances: [],
   loading: false,
   
   // Bus actions
@@ -192,6 +204,16 @@ export const useStore = create<AppState>((set, get) => ({
       set({ balance: data });
     } catch (error) {
       console.error('Error fetching balance:', error);
+    }
+  },
+  
+  fetchBusBalances: async () => {
+    try {
+      const response = await fetch(`${API_URL}/stats/balance-per-bus`);
+      const data = await response.json();
+      set({ busBalances: data });
+    } catch (error) {
+      console.error('Error fetching bus balances:', error);
     }
   },
 }));

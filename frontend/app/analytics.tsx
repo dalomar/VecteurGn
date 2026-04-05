@@ -87,14 +87,14 @@ export default function AnalyticsScreen() {
       value,
       label: key.charAt(0).toUpperCase() + key.slice(1),
       frontColor: '#10B981',
-      labelTextStyle: { color: '#9CA3AF', fontSize: 10 },
+      labelTextStyle: { color: '#FFFFFF', fontSize: 10 },
     }));
 
     const depensesData = Object.entries(analyticsData.depensesByCategory || {}).map(([key, value], index) => ({
       value,
       label: key.charAt(0).toUpperCase() + key.slice(1),
       frontColor: '#EF4444',
-      labelTextStyle: { color: '#9CA3AF', fontSize: 10 },
+      labelTextStyle: { color: '#FFFFFF', fontSize: 10 },
     }));
 
     const recettesPieData = Object.entries(analyticsData.recettesByCategory || {}).map(([key, value], index) => ({
@@ -238,6 +238,7 @@ export default function AnalyticsScreen() {
         label: bus.name.length > 8 ? bus.name.substring(0, 8) + '...' : bus.name,
         frontColor: '#10B981',
         spacing: index === 0 ? 0 : 2,
+        labelTextStyle: { color: '#FFFFFF', fontSize: 10 },
       },
       {
         value: bus.depenses,
