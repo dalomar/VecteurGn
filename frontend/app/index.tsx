@@ -105,7 +105,7 @@ export default function HomeScreen() {
     return '#EF4444';
   };
 
-  const recetteCategories = ['billets', 'location', 'autres'];
+  const recetteCategories = ['recette', 'billets', 'location', 'autres'];
   const depenseCategories = ['carburant', 'entretien', 'assurance', 'salaires', 'autres'];
 
   return (

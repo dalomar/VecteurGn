@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, Depends
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -10,6 +10,13 @@ from typing import List, Optional, Literal
 from datetime import datetime, timedelta
 import calendar
 from bson import ObjectId
+from auth import (
+    get_password_hash, 
+    verify_password, 
+    create_access_token,
+    get_current_user,
+    require_admin
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -47,6 +54,14 @@ def transaction_helper(transaction) -> dict:
         "description": transaction.get("description", ""),
         "date": transaction["date"],
         "createdAt": transaction.get("createdAt", datetime.utcnow())
+    }
+
+def user_helper(user) -> dict:
+    return {
+        "id": str(user["_id"]),
+        "username": user["username"],
+        "role": user["role"],
+        "createdAt": user.get("createdAt", datetime.utcnow())
     }
 
 # Models
