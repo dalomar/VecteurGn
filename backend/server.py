@@ -65,6 +65,24 @@ def user_helper(user) -> dict:
     }
 
 # Models
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    role: Literal["admin", "user"] = "user"
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+class UserResponse(BaseModel):
+    id: str
+    username: str
+    role: str
+    createdAt: datetime
+
+class UserUpdate(BaseModel):
+    role: Literal["admin", "user"]
+
 class BusCreate(BaseModel):
     name: str
     registration: str
@@ -98,6 +116,109 @@ class Transaction(BaseModel):
     description: str
     date: datetime
     createdAt: datetime
+
+# Initialize default admin user on startup
+@app.on_event("startup")
+async def create_default_admin():
+    # Check if admin user exists
+    admin = await db.users.find_one({"username": "vecteur"})
+    if not admin:
+        # Create default admin
+        hashed_password = get_password_hash("vecteurgn")
+        await db.users.insert_one({
+            "username": "vecteur",
+            "password": hashed_password,
+            "role": "admin",
+            "createdAt": datetime.utcnow()
+        })
+        logger.info("Default admin user created: vecteur")
+
+# Authentication Routes
+@api_router.post("/auth/login")
+async def login(user_login: UserLogin):
+    # Find user
+    user = await db.users.find_one({"username": user_login.username})
+    if not user or not verify_password(user_login.password, user["password"]):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Username ou mot de passe incorrect"
+        )
+    
+    # Create access token
+    access_token = create_access_token(
+        data={"sub": user_login.username, "role": user["role"], "id": str(user["_id"])}
+    )
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user_helper(user)
+    }
+
+@api_router.get("/auth/me")
+async def get_me(current_user: dict = Depends(get_current_user)):
+    user = await db.users.find_one({"username": current_user["sub"]})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user_helper(user)
+
+# User Management Routes (Admin only)
+@api_router.post("/users", response_model=UserResponse)
+async def create_user(user: UserCreate, current_user: dict = Depends(require_admin)):
+    # Check if username exists
+    existing = await db.users.find_one({"username": user.username})
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already exists")
+    
+    # Hash password
+    hashed_password = get_password_hash(user.password)
+    
+    # Create user
+    user_dict = {
+        "username": user.username,
+        "password": hashed_password,
+        "role": user.role,
+        "createdAt": datetime.utcnow()
+    }
+    
+    result = await db.users.insert_one(user_dict)
+    new_user = await db.users.find_one({"_id": result.inserted_id})
+    return user_helper(new_user)
+
+@api_router.get("/users", response_model=List[UserResponse])
+async def get_users(current_user: dict = Depends(require_admin)):
+    users = await db.users.find().to_list(1000)
+    return [user_helper(user) for user in users]
+
+@api_router.put("/users/{user_id}/role", response_model=UserResponse)
+async def update_user_role(user_id: str, user_update: UserUpdate, current_user: dict = Depends(require_admin)):
+    # Don't allow changing own role
+    if str(current_user["id"]) == user_id:
+        raise HTTPException(status_code=400, detail="Cannot change your own role")
+    
+    # Update user
+    await db.users.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"role": user_update.role}}
+    )
+    
+    updated_user = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not updated_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return user_helper(updated_user)
+
+@api_router.delete("/users/{user_id}")
+async def delete_user(user_id: str, current_user: dict = Depends(require_admin)):
+    # Don't allow deleting yourself
+    if str(current_user["id"]) == user_id:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    
+    result = await db.users.delete_one({"_id": ObjectId(user_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"message": "User deleted successfully"}
 
 # Bus Routes
 @api_router.post("/buses", response_model=Bus)
