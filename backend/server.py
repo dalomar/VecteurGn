@@ -337,21 +337,47 @@ async def get_balance_per_bus():
     return balances
 
 @api_router.get("/stats/analytics")
-async def get_analytics(busId: Optional[str] = None, period: Literal["day", "week", "month"] = "month"):
+async def get_analytics(
+    busId: Optional[str] = None,
+    period: Literal["day", "week", "month", "year"] = "month",
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+    week: Optional[int] = None
+):
+    """
+    Get analytics data for charts.
+    Supports specific periods with year/month/week parameters.
+    """
+    import calendar
+    
     # Calculate date range
     now = datetime.utcnow()
-    if period == "day":
-        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        days_count = 1
-    elif period == "week":
-        start_date = now - timedelta(days=now.weekday())
-        start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        days_count = 7
-    else:  # month
-        start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        days_count = 30
+    target_year = year if year else now.year
+    target_month = month if month else now.month
     
-    query = {"date": {"$gte": start_date}}
+    if period == "day":
+        start_date = datetime(target_year, target_month, now.day if not year and not month else 1, 0, 0, 0)
+        end_date = start_date + timedelta(days=1)
+    elif period == "week":
+        if week and month:
+            # Specific week of month
+            first_day = datetime(target_year, target_month, 1)
+            start_date = first_day + timedelta(weeks=week-1)
+            end_date = start_date + timedelta(days=7)
+        else:
+            # Current week
+            start_date = now - timedelta(days=now.weekday())
+            start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_date = start_date + timedelta(days=7)
+    elif period == "month":
+        start_date = datetime(target_year, target_month, 1, 0, 0, 0)
+        last_day = calendar.monthrange(target_year, target_month)[1]
+        end_date = datetime(target_year, target_month, last_day, 23, 59, 59)
+    else:  # year
+        start_date = datetime(target_year, 1, 1, 0, 0, 0)
+        end_date = datetime(target_year, 12, 31, 23, 59, 59)
+    
+    query = {"date": {"$gte": start_date, "$lt": end_date}}
     
     if busId:
         # Analytics for specific bus
@@ -377,7 +403,12 @@ async def get_analytics(busId: Optional[str] = None, period: Literal["day", "wee
             "totalRecettes": total_recettes,
             "totalDepenses": total_depenses,
             "recettesByCategory": recettes_by_category,
-            "depensesByCategory": depenses_by_category
+            "depensesByCategory": depenses_by_category,
+            "period_info": {
+                "year": target_year,
+                "month": target_month if period in ["month", "week", "day"] else None,
+                "week": week if period == "week" else None
+            }
         }
     else:
         # Comparison of all buses
@@ -405,7 +436,12 @@ async def get_analytics(busId: Optional[str] = None, period: Literal["day", "wee
         
         return {
             "period": period,
-            "comparison": comparison
+            "comparison": comparison,
+            "period_info": {
+                "year": target_year,
+                "month": target_month if period in ["month", "week", "day"] else None,
+                "week": week if period == "week" else None
+            }
         }
 
 # Include the router in the main app

@@ -12,16 +12,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
+import PeriodSelector from '../components/PeriodSelector';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL + '/api';
 
-type Period = 'day' | 'week' | 'month';
-
-const PERIOD_LABELS: Record<Period, string> = {
-  day: 'Jour',
-  week: 'Semaine',
-  month: 'Mois',
-};
+type Period = 'day' | 'week' | 'month' | 'year';
 
 interface AnalyticsData {
   busId?: string;
@@ -41,10 +36,13 @@ interface AnalyticsData {
 }
 
 export default function AnalyticsScreen() {
-  const [period, setPeriod] = useState<Period>('month');
   const [selectedBusId, setSelectedBusId] = useState<string>('');
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [currentPeriod, setCurrentPeriod] = useState<Period>('month');
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
+  const [currentWeek, setCurrentWeek] = useState<number | undefined>();
 
   const { buses, fetchBuses } = useStore();
 
@@ -54,13 +52,27 @@ export default function AnalyticsScreen() {
 
   useEffect(() => {
     fetchAnalytics();
-  }, [period, selectedBusId]);
+  }, [currentPeriod, currentYear, currentMonth, currentWeek, selectedBusId]);
+
+  const handlePeriodChange = (period: Period, year: number, month?: number, week?: number) => {
+    setCurrentPeriod(period);
+    setCurrentYear(year);
+    setCurrentMonth(month || new Date().getMonth() + 1);
+    setCurrentWeek(week);
+  };
 
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      params.append('period', period);
+      params.append('period', currentPeriod);
+      params.append('year', currentYear.toString());
+      if (currentMonth && currentPeriod !== 'year') {
+        params.append('month', currentMonth.toString());
+      }
+      if (currentWeek && currentPeriod === 'week') {
+        params.append('week', currentWeek.toString());
+      }
       if (selectedBusId) {
         params.append('busId', selectedBusId);
       }
@@ -331,27 +343,7 @@ export default function AnalyticsScreen() {
         {/* Period Filter */}
         <View style={styles.filterSection}>
           <Text style={styles.filterLabel}>Période:</Text>
-          <View style={styles.periodFilter}>
-            {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
-              <TouchableOpacity
-                key={p}
-                style={[
-                  styles.periodButton,
-                  period === p && styles.periodButtonActive,
-                ]}
-                onPress={() => setPeriod(p)}
-              >
-                <Text
-                  style={[
-                    styles.periodButtonText,
-                    period === p && styles.periodButtonTextActive,
-                  ]}
-                >
-                  {PERIOD_LABELS[p]}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <PeriodSelector onPeriodChange={handlePeriodChange} />
         </View>
 
         {/* Bus Filter */}
