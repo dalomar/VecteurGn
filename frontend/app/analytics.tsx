@@ -13,6 +13,7 @@ import { useStore } from '../store';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
 import PeriodSelector from '../components/PeriodSelector';
+import BusSelector from '../components/BusSelector';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL + '/api';
 
@@ -349,43 +350,12 @@ export default function AnalyticsScreen() {
         {/* Bus Filter */}
         <View style={styles.filterSection}>
           <Text style={styles.filterLabel}>Bus:</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.busFilter}>
-            <TouchableOpacity
-              style={[
-                styles.busChip,
-                selectedBusId === '' && styles.busChipActive,
-              ]}
-              onPress={() => setSelectedBusId('')}
-            >
-              <Text
-                style={[
-                  styles.busChipText,
-                  selectedBusId === '' && styles.busChipTextActive,
-                ]}
-              >
-                Comparaison
-              </Text>
-            </TouchableOpacity>
-            {buses.map((bus) => (
-              <TouchableOpacity
-                key={bus.id}
-                style={[
-                  styles.busChip,
-                  selectedBusId === bus.id && styles.busChipActive,
-                ]}
-                onPress={() => setSelectedBusId(bus.id)}
-              >
-                <Text
-                  style={[
-                    styles.busChipText,
-                    selectedBusId === bus.id && styles.busChipTextActive,
-                  ]}
-                >
-                  {bus.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <BusSelector
+            buses={buses}
+            selectedBusId={selectedBusId}
+            onSelect={setSelectedBusId}
+            allowAll={true}
+          />
         </View>
 
         {/* Content */}

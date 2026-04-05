@@ -15,6 +15,7 @@ import { useStore } from '../store';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import PeriodSelector from '../components/PeriodSelector';
+import BusSelector from '../components/BusSelector';
 
 type Period = 'day' | 'week' | 'month' | 'year';
 
@@ -293,27 +294,12 @@ export default function HomeScreen() {
             <ScrollView style={styles.modalForm} showsVerticalScrollIndicator={false}>
               {/* Bus Selection */}
               <Text style={styles.label}>Bus *</Text>
-              <View style={styles.categoryGrid}>
-                {buses.map((bus) => (
-                  <TouchableOpacity
-                    key={bus.id}
-                    style={[
-                      styles.categoryChip,
-                      selectedBusId === bus.id && styles.categoryChipActive,
-                    ]}
-                    onPress={() => setSelectedBusId(bus.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.categoryChipText,
-                        selectedBusId === bus.id && styles.categoryChipTextActive,
-                      ]}
-                    >
-                      {bus.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <BusSelector
+                buses={buses}
+                selectedBusId={selectedBusId}
+                onSelect={setSelectedBusId}
+                placeholder="Choisir un bus"
+              />
 
               {/* Category Selection */}
               <Text style={styles.label}>Catégorie *</Text>
