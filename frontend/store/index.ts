@@ -63,7 +63,7 @@ interface AppState {
   deleteTransaction: (id: string) => Promise<void>;
   
   // Stats actions
-  fetchRanking: (period: 'day' | 'week' | 'month' | 'year') => Promise<void>;
+  fetchRanking: (period: 'day' | 'week' | 'month' | 'year', year?: number, month?: number, week?: number) => Promise<void>;
   fetchBalance: () => Promise<void>;
   fetchBusBalances: () => Promise<void>;
 }
@@ -187,9 +187,15 @@ export const useStore = create<AppState>((set, get) => ({
   },
   
   // Stats actions
-  fetchRanking: async (period) => {
+  fetchRanking: async (period, year?, month?, week?) => {
     try {
-      const response = await fetch(`${API_URL}/stats/ranking?period=${period}`);
+      const params = new URLSearchParams();
+      params.append('period', period);
+      if (year) params.append('year', year.toString());
+      if (month) params.append('month', month.toString());
+      if (week) params.append('week', week.toString());
+      
+      const response = await fetch(`${API_URL}/stats/ranking?${params.toString()}`);
       const data = await response.json();
       set({ ranking: data });
     } catch (error) {

@@ -8,6 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Literal
 from datetime import datetime, timedelta
+import calendar
 from bson import ObjectId
 
 ROOT_DIR = Path(__file__).parent
@@ -174,18 +175,67 @@ async def delete_transaction(transaction_id: str):
 
 # Statistics Routes
 @api_router.get("/stats/ranking")
-async def get_ranking(period: Literal["day", "week", "month", "year"] = "day"):
-    # Calculate date range based on period
+async def get_ranking(
+    period: Literal["day", "week", "month", "year"] = "day",
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+    week: Optional[int] = None
+):
+    """
+    Get bus ranking for a specific period.
+    - period: day, week, month, year
+    - year: specific year (default: current year)
+    - month: specific month 1-12 (for month/week period)
+    - week: specific week number in month 1-5 (for week period)
+    
+    Note: Buses work Monday-Saturday (6 days/week)
+    """
+    from datetime import datetime, timedelta
+    import calendar
+    
+    # Use current date if not specified
     now = datetime.utcnow()
+    target_year = year if year else now.year
+    target_month = month if month else now.month
+    
     if period == "day":
-        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        # Today or specific date
+        start_date = datetime(target_year, target_month, now.day, 0, 0, 0)
+        end_date = start_date + timedelta(days=1)
+        days_in_period = 1
     elif period == "week":
-        start_date = now - timedelta(days=now.weekday())
-        start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        # Specific week of month
+        if week:
+            # Get first day of month
+            first_day = datetime(target_year, target_month, 1)
+            # Calculate start of specific week
+            start_date = first_day + timedelta(weeks=week-1)
+            end_date = start_date + timedelta(days=7)
+            days_in_period = 6  # Monday-Saturday
+        else:
+            # Current week
+            start_date = now - timedelta(days=now.weekday())
+            start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_date = start_date + timedelta(days=7)
+            days_in_period = 6
     elif period == "month":
-        start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        # Specific month
+        start_date = datetime(target_year, target_month, 1, 0, 0, 0)
+        # Last day of month
+        last_day = calendar.monthrange(target_year, target_month)[1]
+        end_date = datetime(target_year, target_month, last_day, 23, 59, 59)
+        # Count working days (Mon-Sat) in month
+        days_in_period = 0
+        current = start_date
+        while current <= end_date:
+            if current.weekday() < 6:  # Monday=0 to Saturday=5
+                days_in_period += 1
+            current += timedelta(days=1)
     else:  # year
-        start_date = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        start_date = datetime(target_year, 1, 1, 0, 0, 0)
+        end_date = datetime(target_year, 12, 31, 23, 59, 59)
+        # 52 weeks * 6 days = 312 working days per year
+        days_in_period = 312
     
     # Get all buses
     buses = await db.buses.find().to_list(1000)
@@ -198,20 +248,13 @@ async def get_ranking(period: Literal["day", "week", "month", "year"] = "day"):
         recettes = await db.transactions.find({
             "busId": bus_id,
             "type": "recette",
-            "date": {"$gte": start_date}
+            "date": {"$gte": start_date, "$lt": end_date}
         }).to_list(1000)
         
         total_recettes = sum(t["amount"] for t in recettes)
         
-        # Calculate target based on period
-        if period == "day":
-            target = bus["dailyTarget"]
-        elif period == "week":
-            target = bus["dailyTarget"] * 7
-        elif period == "month":
-            target = bus["dailyTarget"] * 30
-        else:  # year
-            target = bus["dailyTarget"] * 365
+        # Calculate target based on working days (Monday-Saturday)
+        target = bus["dailyTarget"] * days_in_period
         
         percentage = (total_recettes / target * 100) if target > 0 else 0
         
@@ -222,7 +265,13 @@ async def get_ranking(period: Literal["day", "week", "month", "year"] = "day"):
             "currency": bus["currency"],
             "revenue": total_recettes,
             "target": target,
-            "percentage": min(percentage, 999)  # Cap at 999%
+            "percentage": min(percentage, 999),  # Cap at 999%
+            "period_info": {
+                "year": target_year,
+                "month": target_month if period in ["month", "week"] else None,
+                "week": week if period == "week" else None,
+                "working_days": days_in_period
+            }
         })
     
     # Sort by revenue descending

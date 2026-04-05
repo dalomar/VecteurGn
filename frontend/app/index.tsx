@@ -14,18 +14,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
+import PeriodSelector from '../components/PeriodSelector';
 
 type Period = 'day' | 'week' | 'month' | 'year';
 
-const PERIOD_LABELS: Record<Period, string> = {
-  day: 'Jour',
-  week: 'Semaine',
-  month: 'Mois',
-  year: 'Année',
-};
-
 export default function HomeScreen() {
-  const [selectedPeriod, setSelectedPeriod] = useState<Period>('day');
   const [modalVisible, setModalVisible] = useState(false);
   const [transactionType, setTransactionType] = useState<'recette' | 'depense'>('recette');
   const [selectedBusId, setSelectedBusId] = useState('');
@@ -38,12 +31,13 @@ export default function HomeScreen() {
   useEffect(() => {
     fetchBuses();
     fetchBusBalances();
-    fetchRanking(selectedPeriod);
+    const now = new Date();
+    fetchRanking('month', now.getFullYear(), now.getMonth() + 1);
   }, []);
 
-  useEffect(() => {
-    fetchRanking(selectedPeriod);
-  }, [selectedPeriod]);
+  const handlePeriodChange = (period: Period, year: number, month?: number, week?: number) => {
+    fetchRanking(period, year, month, week);
+  };
 
   const handleQuickTransaction = async () => {
     if (!selectedBusId || !category || !amount) {
@@ -202,28 +196,8 @@ export default function HomeScreen() {
             <Text style={styles.sectionTitle}>🏆 Classement des Bus</Text>
           </View>
 
-          {/* Period Filter */}
-          <View style={styles.periodFilter}>
-            {(Object.keys(PERIOD_LABELS) as Period[]).map((period) => (
-              <TouchableOpacity
-                key={period}
-                style={[
-                  styles.periodButton,
-                  selectedPeriod === period && styles.periodButtonActive,
-                ]}
-                onPress={() => setSelectedPeriod(period)}
-              >
-                <Text
-                  style={[
-                    styles.periodButtonText,
-                    selectedPeriod === period && styles.periodButtonTextActive,
-                  ]}
-                >
-                  {PERIOD_LABELS[period]}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          {/* Period Selector */}
+          <PeriodSelector onPeriodChange={handlePeriodChange} />
 
           {/* Ranking List */}
           {ranking.length === 0 ? (
