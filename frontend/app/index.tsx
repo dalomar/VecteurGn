@@ -69,8 +69,9 @@ export default function HomeScreen() {
       setModalVisible(false);
 
       // Refresh data
-      fetchBusBalances();
-      fetchRanking(selectedPeriod);
+      await fetchBusBalances();
+      const now = new Date();
+      await fetchRanking('month', now.getFullYear(), now.getMonth() + 1);
 
       Toast.show({
         type: 'success',

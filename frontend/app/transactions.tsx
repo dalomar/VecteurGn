@@ -130,7 +130,7 @@ export default function TransactionsScreen() {
     return bus ? bus.currency : 'GNF';
   };
 
-  const recetteCategories = ['billets', 'location', 'autres'];
+  const recetteCategories = ['recette', 'billets', 'location', 'autres'];
   const depenseCategories = ['carburant', 'entretien', 'assurance', 'salaires', 'autres'];
 
   return (
