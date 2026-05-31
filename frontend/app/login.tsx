@@ -4,7 +4,7 @@ import {
   Text,
   StyleSheet,
   TextInput,
-  TouchableOpacity,
+  Pressable,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
@@ -14,6 +14,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
+import Animated, {
+  FadeInDown,
+  ZoomIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
@@ -21,6 +28,11 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
+
+  const buttonScale = useSharedValue(1);
+  const buttonAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
 
   const handleLogin = async () => {
     if (!username || !password) {
@@ -64,25 +76,30 @@ export default function LoginScreen() {
         <View style={styles.content}>
           {/* Logo/Header */}
           <View style={styles.header}>
-            <View style={styles.logoContainer}>
-              <Ionicons name="bus" size={64} color="#3B82F6" />
-            </View>
-            <Text style={styles.title}>Vecteur GN</Text>
-            <Text style={styles.subtitle}>Gestion de Flotte de Bus</Text>
+            <Animated.View
+              entering={ZoomIn.springify().delay(100)}
+              style={styles.logoContainer}
+            >
+              <Ionicons name="bus" size={64} color="#F4B400" />
+            </Animated.View>
+            <Animated.View entering={FadeInDown.duration(500).delay(350)}>
+              <Text style={styles.title}>Vecteur GN</Text>
+              <Text style={styles.subtitle}>Gestion de Flotte de Bus</Text>
+            </Animated.View>
           </View>
 
           {/* Login Form */}
-          <View style={styles.form}>
+          <Animated.View entering={FadeInDown.duration(500).delay(500)} style={styles.form}>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Nom d'utilisateur</Text>
+              <Text style={styles.label}>Nom d&apos;utilisateur</Text>
               <View style={styles.inputContainer}>
-                <Ionicons name="person" size={20} color="#9CA3AF" style={styles.inputIcon} />
+                <Ionicons name="person" size={20} color="#A6ABB4" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   value={username}
                   onChangeText={setUsername}
                   placeholder="vecteur"
-                  placeholderTextColor="#6B7280"
+                  placeholderTextColor="#7B818C"
                   autoCapitalize="none"
                   editable={!loading}
                 />
@@ -92,39 +109,53 @@ export default function LoginScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Mot de passe</Text>
               <View style={styles.inputContainer}>
-                <Ionicons name="lock-closed" size={20} color="#9CA3AF" style={styles.inputIcon} />
+                <Ionicons name="lock-closed" size={20} color="#A6ABB4" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   value={password}
                   onChangeText={setPassword}
                   placeholder="••••••••"
-                  placeholderTextColor="#6B7280"
+                  placeholderTextColor="#7B818C"
                   secureTextEntry
                   editable={!loading}
                 />
               </View>
             </View>
 
-            <TouchableOpacity
-              style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-              onPress={handleLogin}
-              disabled={loading}
+            <Animated.View
+              entering={FadeInDown.duration(500).delay(650)}
+              style={buttonAnimStyle}
             >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="log-in" size={20} color="#fff" />
-                  <Text style={styles.loginButtonText}>Se connecter</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
+              <Pressable
+                style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+                onPress={handleLogin}
+                onPressIn={() => {
+                  if (!loading) buttonScale.value = withSpring(0.96, { damping: 10 });
+                }}
+                onPressOut={() => {
+                  buttonScale.value = withSpring(1, { damping: 10 });
+                }}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="log-in" size={20} color="#fff" />
+                    <Text style={styles.loginButtonText}>Se connecter</Text>
+                  </>
+                )}
+              </Pressable>
+            </Animated.View>
+          </Animated.View>
 
           {/* Footer */}
-          <View style={styles.footer}>
+          <Animated.View
+            entering={FadeInDown.duration(500).delay(800)}
+            style={styles.footer}
+          >
             <Text style={styles.footerText}>Développé par Oumar DRAMÉ</Text>
-          </View>
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
       <Toast />
@@ -135,7 +166,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: '#0D0F12',
   },
   keyboardView: {
     flex: 1,
@@ -153,22 +184,24 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
     borderWidth: 3,
-    borderColor: '#3B82F6',
+    borderColor: '#F4B400',
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
     color: '#fff',
     marginBottom: 8,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#9CA3AF',
+    color: '#A6ABB4',
+    textAlign: 'center',
   },
   form: {
     marginBottom: 32,
@@ -185,10 +218,10 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#2B313A',
   },
   inputIcon: {
     marginLeft: 16,
@@ -203,7 +236,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#F4B400',
     padding: 16,
     borderRadius: 12,
     marginTop: 12,
@@ -223,6 +256,6 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 12,
-    color: '#6B7280',
+    color: '#7B818C',
   },
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -32,18 +32,10 @@ export default function UsersScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'admin' | 'user'>('user');
-  const { token, user: currentUser, logout } = useAuth();
+  const { token, user: currentUser } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
-    if (currentUser?.role !== 'admin') {
-      router.replace('/');
-    } else {
-      fetchUsers();
-    }
-  }, [currentUser]);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}/users`, {
         headers: {
@@ -52,7 +44,7 @@ export default function UsersScreen() {
       });
       const data = await response.json();
       setUsers(data);
-    } catch (error) {
+    } catch {
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -60,7 +52,15 @@ export default function UsersScreen() {
         position: 'top',
       });
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    if (currentUser?.role !== 'admin') {
+      router.replace('/');
+    } else {
+      fetchUsers();
+    }
+  }, [currentUser, fetchUsers, router]);
 
   const handleCreateUser = async () => {
     if (!username || !password) {
@@ -189,34 +189,13 @@ export default function UsersScreen() {
     );
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Déconnexion',
-      'Êtes-vous sûr de vouloir vous déconnecter ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Déconnecter',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-            router.replace('/login');
-          },
-        },
-      ]
-    );
-  };
-
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Gestion des Utilisateurs</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
-            <Ionicons name="person-add" size={24} color="#3B82F6" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Ionicons name="log-out" size={24} color="#EF4444" />
+            <Ionicons name="person-add" size={24} color="#F4B400" />
           </TouchableOpacity>
         </View>
       </View>
@@ -252,7 +231,7 @@ export default function UsersScreen() {
                   <Ionicons
                     name={user.role === 'admin' ? 'person' : 'shield-checkmark'}
                     size={20}
-                    color="#3B82F6"
+                    color="#F4B400"
                   />
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -287,13 +266,13 @@ export default function UsersScreen() {
             </View>
 
             <View style={styles.modalForm}>
-              <Text style={styles.label}>Nom d'utilisateur *</Text>
+              <Text style={styles.label}>Nom d&apos;utilisateur *</Text>
               <TextInput
                 style={styles.input}
                 value={username}
                 onChangeText={setUsername}
                 placeholder="username"
-                placeholderTextColor="#6B7280"
+                placeholderTextColor="#7B818C"
                 autoCapitalize="none"
               />
 
@@ -303,7 +282,7 @@ export default function UsersScreen() {
                 value={password}
                 onChangeText={setPassword}
                 placeholder="••••••••"
-                placeholderTextColor="#6B7280"
+                placeholderTextColor="#7B818C"
                 secureTextEntry
               />
 
@@ -357,16 +336,16 @@ export default function UsersScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: '#0D0F12',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    borderBottomColor: '#2B313A',
   },
   headerTitle: {
     fontSize: 24,
@@ -380,9 +359,6 @@ const styles = StyleSheet.create({
   addButton: {
     padding: 8,
   },
-  logoutButton: {
-    padding: 8,
-  },
   scrollView: {
     flex: 1,
     padding: 16,
@@ -391,12 +367,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#2B313A',
   },
   userInfo: {
     flexDirection: 'row',
@@ -412,10 +388,10 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   adminBadge: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#F4B400',
   },
   userBadge: {
-    backgroundColor: '#6B7280',
+    backgroundColor: '#7B818C',
   },
   userDetails: {
     flex: 1,
@@ -428,7 +404,7 @@ const styles = StyleSheet.create({
   },
   userRole: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: '#A6ABB4',
   },
   userActions: {
     flexDirection: 'row',
@@ -446,7 +422,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
@@ -456,7 +432,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    borderBottomColor: '#2B313A',
   },
   modalTitle: {
     fontSize: 20,
@@ -474,13 +450,13 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   input: {
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     color: '#fff',
     borderWidth: 1,
-    borderColor: '#4B5563',
+    borderColor: '#3A404A',
   },
   roleButtons: {
     flexDirection: 'row',
@@ -494,13 +470,13 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
     borderWidth: 1,
-    borderColor: '#4B5563',
+    borderColor: '#3A404A',
   },
   roleSelectButtonActive: {
-    backgroundColor: '#3B82F6',
-    borderColor: '#3B82F6',
+    backgroundColor: '#F4B400',
+    borderColor: '#F4B400',
   },
   roleSelectText: {
     fontSize: 14,
@@ -511,7 +487,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   submitButton: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#F4B400',
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',

@@ -25,8 +25,8 @@ function ProtectedLayout() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#111827' }}>
-        <ActivityIndicator size="large" color="#3B82F6" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0D0F12' }}>
+        <ActivityIndicator size="large" color="#F4B400" />
       </View>
     );
   }
@@ -34,16 +34,16 @@ function ProtectedLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#3B82F6',
-        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarActiveTintColor: '#F4B400',
+        tabBarInactiveTintColor: '#A6ABB4',
         tabBarStyle: {
-          backgroundColor: '#1F2937',
-          borderTopColor: '#374151',
+          backgroundColor: '#171A1F',
+          borderTopColor: '#2B313A',
           height: 60,
           paddingBottom: 8,
         },
         headerStyle: {
-          backgroundColor: '#1F2937',
+          backgroundColor: '#171A1F',
         },
         headerTintColor: '#fff',
         headerTitleStyle: {

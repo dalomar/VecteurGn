@@ -64,9 +64,9 @@ export default function PeriodSelector({ onPeriodChange }: PeriodSelectorProps) 
         style={styles.selectorButton}
         onPress={() => setModalVisible(true)}
       >
-        <Ionicons name="calendar" size={20} color="#3B82F6" />
+        <Ionicons name="calendar" size={20} color="#F4B400" />
         <Text style={styles.selectorText}>{getPeriodLabel()}</Text>
-        <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
+        <Ionicons name="chevron-down" size={20} color="#A6ABB4" />
       </TouchableOpacity>
 
       <Modal
@@ -208,11 +208,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     padding: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#2B313A',
     gap: 8,
   },
   selectorText: {
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '80%',
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    borderBottomColor: '#2B313A',
   },
   modalTitle: {
     fontSize: 20,
@@ -264,11 +264,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
     alignItems: 'center',
   },
   periodTypeActive: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#F4B400',
   },
   periodTypeText: {
     fontSize: 14,
@@ -288,11 +288,11 @@ const styles = StyleSheet.create({
     width: '30%',
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
     alignItems: 'center',
   },
   yearButtonActive: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#F4B400',
   },
   yearButtonText: {
     fontSize: 16,
@@ -312,11 +312,11 @@ const styles = StyleSheet.create({
     width: '22%',
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
     alignItems: 'center',
   },
   monthButtonActive: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#F4B400',
   },
   monthButtonText: {
     fontSize: 13,
@@ -335,11 +335,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
     alignItems: 'center',
   },
   weekButtonActive: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#F4B400',
   },
   weekButtonText: {
     fontSize: 14,

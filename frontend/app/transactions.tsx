@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useStore, Transaction } from '../store';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
-import Toast from 'react-native-toast-message';
+import { useFocusEffect } from 'expo-router';
 
 export default function TransactionsScreen() {
   const [filterBusId, setFilterBusId] = useState('');
@@ -31,10 +31,20 @@ export default function TransactionsScreen() {
 
   const { transactions, buses, fetchTransactions, fetchBuses, createTransaction, updateTransaction, deleteTransaction } = useStore();
 
-  useEffect(() => {
+  const refreshTransactions = useCallback(() => {
     fetchBuses();
-    fetchTransactions();
-  }, []);
+    fetchTransactions(filterBusId || undefined, filterType || undefined);
+  }, [fetchBuses, fetchTransactions, filterBusId, filterType]);
+
+  useEffect(() => {
+    refreshTransactions();
+  }, [refreshTransactions]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshTransactions();
+    }, [refreshTransactions])
+  );
 
   const applyFilters = () => {
     fetchTransactions(filterBusId || undefined, filterType || undefined);
@@ -92,7 +102,7 @@ export default function TransactionsScreen() {
 
       setModalVisible(false);
       applyFilters();
-    } catch (error) {
+    } catch {
       Alert.alert('Erreur', 'Une erreur est survenue');
     }
   };
@@ -111,7 +121,7 @@ export default function TransactionsScreen() {
               await deleteTransaction(transaction.id);
               Alert.alert('Succès', 'Transaction supprimée avec succès!');
               applyFilters();
-            } catch (error) {
+            } catch {
               Alert.alert('Erreur', 'Impossible de supprimer la transaction');
             }
           },
@@ -130,7 +140,7 @@ export default function TransactionsScreen() {
     return bus ? bus.currency : 'GNF';
   };
 
-  const recetteCategories = ['billets', 'location', 'autres'];
+  const recetteCategories = ['Recette', 'billets', 'location', 'autres'];
   const depenseCategories = ['carburant', 'entretien', 'assurance', 'salaires', 'autres'];
 
   return (
@@ -138,7 +148,7 @@ export default function TransactionsScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Transactions</Text>
         <TouchableOpacity style={styles.addButton} onPress={openCreateModal}>
-          <Ionicons name="add-circle" size={28} color="#3B82F6" />
+          <Ionicons name="add-circle" size={28} color="#F4B400" />
         </TouchableOpacity>
       </View>
 
@@ -218,7 +228,7 @@ export default function TransactionsScreen() {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {transactions.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="receipt-outline" size={80} color="#6B7280" />
+            <Ionicons name="receipt-outline" size={80} color="#7B818C" />
             <Text style={styles.emptyText}>Aucune transaction</Text>
             <Text style={styles.emptySubtext}>Ajoutez votre première transaction</Text>
           </View>
@@ -255,7 +265,7 @@ export default function TransactionsScreen() {
                   </Text>
                   <View style={styles.actionButtons}>
                     <TouchableOpacity onPress={() => openEditModal(transaction)}>
-                      <Ionicons name="create-outline" size={20} color="#3B82F6" />
+                      <Ionicons name="create-outline" size={20} color="#F4B400" />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => handleDelete(transaction)}>
                       <Ionicons name="trash-outline" size={20} color="#EF4444" />
@@ -388,7 +398,7 @@ export default function TransactionsScreen() {
                 onChangeText={setAmount}
                 keyboardType="numeric"
                 placeholder="0"
-                placeholderTextColor="#6B7280"
+                placeholderTextColor="#7B818C"
               />
 
               <Text style={styles.label}>Description (optionnel)</Text>
@@ -397,7 +407,7 @@ export default function TransactionsScreen() {
                 value={description}
                 onChangeText={setDescription}
                 placeholder="Détails..."
-                placeholderTextColor="#6B7280"
+                placeholderTextColor="#7B818C"
                 multiline
                 numberOfLines={3}
               />
@@ -418,16 +428,16 @@ export default function TransactionsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: '#0D0F12',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    borderBottomColor: '#2B313A',
   },
   headerTitle: {
     fontSize: 24,
@@ -438,10 +448,10 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   filterSection: {
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    borderBottomColor: '#2B313A',
   },
   filterRow: {
     marginBottom: 12,
@@ -465,14 +475,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
     marginRight: 8,
     borderWidth: 1,
-    borderColor: '#4B5563',
+    borderColor: '#3A404A',
   },
   filterChipActive: {
-    backgroundColor: '#3B82F6',
-    borderColor: '#3B82F6',
+    backgroundColor: '#F4B400',
+    borderColor: '#F4B400',
   },
   filterChipText: {
     color: '#D1D5DB',
@@ -490,14 +500,14 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
     borderWidth: 1,
-    borderColor: '#4B5563',
+    borderColor: '#3A404A',
     alignItems: 'center',
   },
   typeButtonActive: {
-    backgroundColor: '#3B82F6',
-    borderColor: '#3B82F6',
+    backgroundColor: '#F4B400',
+    borderColor: '#F4B400',
   },
   typeButtonActiveRecette: {
     backgroundColor: '#10B981',
@@ -521,7 +531,7 @@ const styles = StyleSheet.create({
   },
   applyButton: {
     flex: 1,
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#F4B400',
     paddingVertical: 10,
     borderRadius: 8,
     alignItems: 'center',
@@ -533,7 +543,7 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     flex: 1,
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
     paddingVertical: 10,
     borderRadius: 8,
     alignItems: 'center',
@@ -554,21 +564,21 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#9CA3AF',
+    color: '#A6ABB4',
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#7B818C',
     marginTop: 8,
   },
   transactionCard: {
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#2B313A',
   },
   transactionHeader: {
     flexDirection: 'row',
@@ -599,12 +609,12 @@ const styles = StyleSheet.create({
   },
   transactionCategory: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: '#A6ABB4',
     marginBottom: 4,
   },
   transactionDate: {
     fontSize: 12,
-    color: '#6B7280',
+    color: '#7B818C',
   },
   transactionActions: {
     alignItems: 'flex-end',
@@ -630,7 +640,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#374151',
+    borderTopColor: '#2B313A',
   },
   modalContainer: {
     flex: 1,
@@ -638,7 +648,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '90%',
@@ -649,7 +659,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    borderBottomColor: '#2B313A',
   },
   modalTitle: {
     fontSize: 20,
@@ -667,13 +677,13 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   input: {
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     color: '#fff',
     borderWidth: 1,
-    borderColor: '#4B5563',
+    borderColor: '#3A404A',
   },
   textArea: {
     height: 80,
@@ -688,13 +698,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
     borderWidth: 1,
-    borderColor: '#4B5563',
+    borderColor: '#3A404A',
   },
   categoryChipActive: {
-    backgroundColor: '#3B82F6',
-    borderColor: '#3B82F6',
+    backgroundColor: '#F4B400',
+    borderColor: '#F4B400',
   },
   categoryChipText: {
     color: '#D1D5DB',
@@ -705,7 +715,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   submitButton: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#F4B400',
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',

@@ -139,14 +139,14 @@ export default function BusesScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Gestion des Bus</Text>
         <TouchableOpacity style={styles.addButton} onPress={openCreateModal}>
-          <Ionicons name="add-circle" size={28} color="#3B82F6" />
+          <Ionicons name="add-circle" size={28} color="#F4B400" />
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {buses.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="bus-outline" size={80} color="#6B7280" />
+            <Ionicons name="bus-outline" size={80} color="#7B818C" />
             <Text style={styles.emptyText}>Aucun bus enregistré</Text>
             <Text style={styles.emptySubtext}>Appuyez sur + pour ajouter votre premier bus</Text>
           </View>
@@ -155,7 +155,7 @@ export default function BusesScreen() {
             <View key={bus.id} style={styles.busCard}>
               <View style={styles.busHeader}>
                 <View style={styles.busIcon}>
-                  <Ionicons name="bus" size={24} color="#3B82F6" />
+                  <Ionicons name="bus" size={24} color="#F4B400" />
                 </View>
                 <View style={styles.busInfo}>
                   <Text style={styles.busName}>{bus.name}</Text>
@@ -163,7 +163,7 @@ export default function BusesScreen() {
                 </View>
                 <View style={styles.busActions}>
                   <TouchableOpacity onPress={() => openEditModal(bus)} style={styles.iconButton}>
-                    <Ionicons name="create-outline" size={24} color="#3B82F6" />
+                    <Ionicons name="create-outline" size={24} color="#F4B400" />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => handleDelete(bus)} style={styles.iconButton}>
                     <Ionicons name="trash-outline" size={24} color="#EF4444" />
@@ -173,12 +173,12 @@ export default function BusesScreen() {
 
               <View style={styles.busDetails}>
                 <View style={styles.detailRow}>
-                  <Ionicons name="wallet-outline" size={16} color="#9CA3AF" />
+                  <Ionicons name="wallet-outline" size={16} color="#A6ABB4" />
                   <Text style={styles.detailLabel}>Devise:</Text>
                   <Text style={styles.detailValue}>{bus.currency}</Text>
                 </View>
                 <View style={styles.detailRow}>
-                  <Ionicons name="trending-up-outline" size={16} color="#9CA3AF" />
+                  <Ionicons name="trending-up-outline" size={16} color="#A6ABB4" />
                   <Text style={styles.detailLabel}>Objectif journalier:</Text>
                   <Text style={styles.detailValue}>
                     {bus.dailyTarget.toLocaleString('fr-FR')} {bus.currency}
@@ -194,7 +194,7 @@ export default function BusesScreen() {
                   <View style={styles.staffList}>
                     {bus.staff.filter(s => s.trim() !== '').map((person, index) => (
                       <View key={index} style={styles.staffChip}>
-                        <Ionicons name="person" size={12} color="#3B82F6" />
+                        <Ionicons name="person" size={12} color="#F4B400" />
                         <Text style={styles.staffName}>{person}</Text>
                       </View>
                     ))}
@@ -234,7 +234,7 @@ export default function BusesScreen() {
                 value={name}
                 onChangeText={setName}
                 placeholder="Ex: Bus Express 1"
-                placeholderTextColor="#6B7280"
+                placeholderTextColor="#7B818C"
               />
 
               <Text style={styles.label}>Immatriculation *</Text>
@@ -243,7 +243,7 @@ export default function BusesScreen() {
                 value={registration}
                 onChangeText={setRegistration}
                 placeholder="Ex: AB-1234-CD"
-                placeholderTextColor="#6B7280"
+                placeholderTextColor="#7B818C"
               />
 
               <Text style={styles.label}>Devise *</Text>
@@ -289,7 +289,7 @@ export default function BusesScreen() {
                 onChangeText={setDailyTarget}
                 keyboardType="numeric"
                 placeholder="Ex: 1000000"
-                placeholderTextColor="#6B7280"
+                placeholderTextColor="#7B818C"
               />
 
               <Text style={styles.label}>Personnel (5 personnes max)</Text>
@@ -304,7 +304,7 @@ export default function BusesScreen() {
                     setStaff(newStaff);
                   }}
                   placeholder={`Personne ${index + 1}`}
-                  placeholderTextColor="#6B7280"
+                  placeholderTextColor="#7B818C"
                 />
               ))}
 
@@ -326,16 +326,16 @@ export default function BusesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: '#0D0F12',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    borderBottomColor: '#2B313A',
   },
   headerTitle: {
     fontSize: 24,
@@ -356,21 +356,21 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#9CA3AF',
+    color: '#A6ABB4',
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#7B818C',
     marginTop: 8,
   },
   busCard: {
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#2B313A',
   },
   busHeader: {
     flexDirection: 'row',
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
   busIcon: {
     width: 48,
     height: 48,
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
   },
   busRegistration: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: '#A6ABB4',
   },
   busActions: {
     flexDirection: 'row',
@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: '#A6ABB4',
   },
   detailValue: {
     fontSize: 14,
@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#374151',
+    borderTopColor: '#2B313A',
   },
   staffTitle: {
     fontSize: 14,
@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
   },
   staffEmpty: {
     fontSize: 12,
-    color: '#6B7280',
+    color: '#7B818C',
     fontStyle: 'italic',
   },
   staffList: {
@@ -449,7 +449,7 @@ const styles = StyleSheet.create({
   staffChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '90%',
@@ -476,7 +476,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    borderBottomColor: '#2B313A',
   },
   modalTitle: {
     fontSize: 20,
@@ -494,13 +494,13 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   input: {
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     color: '#fff',
     borderWidth: 1,
-    borderColor: '#4B5563',
+    borderColor: '#3A404A',
   },
   staffInput: {
     marginTop: 8,
@@ -513,14 +513,14 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
     borderWidth: 1,
-    borderColor: '#4B5563',
+    borderColor: '#3A404A',
     alignItems: 'center',
   },
   currencyButtonActive: {
-    backgroundColor: '#3B82F6',
-    borderColor: '#3B82F6',
+    backgroundColor: '#F4B400',
+    borderColor: '#F4B400',
   },
   currencyButtonText: {
     fontSize: 16,
@@ -531,7 +531,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   submitButton: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#F4B400',
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',

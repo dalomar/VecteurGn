@@ -51,7 +51,7 @@ export default function BusSelector({
         onPress={() => setModalVisible(true)}
       >
         <View style={styles.buttonContent}>
-          <Ionicons name="bus" size={20} color="#3B82F6" />
+          <Ionicons name="bus" size={20} color="#F4B400" />
           <Text style={[
             styles.selectorText,
             !selectedBusId && !allowAll && styles.placeholderText
@@ -59,7 +59,7 @@ export default function BusSelector({
             {displayText}
           </Text>
         </View>
-        <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
+        <Ionicons name="chevron-down" size={20} color="#A6ABB4" />
       </TouchableOpacity>
 
       <Modal
@@ -90,7 +90,7 @@ export default function BusSelector({
                     <Ionicons 
                       name="apps" 
                       size={24} 
-                      color={selectedBusId === '' ? '#3B82F6' : '#9CA3AF'} 
+                      color={selectedBusId === '' ? '#F4B400' : '#A6ABB4'} 
                     />
                     <View style={styles.busItemText}>
                       <Text style={[
@@ -102,7 +102,7 @@ export default function BusSelector({
                     </View>
                   </View>
                   {selectedBusId === '' && (
-                    <Ionicons name="checkmark-circle" size={24} color="#3B82F6" />
+                    <Ionicons name="checkmark-circle" size={24} color="#F4B400" />
                   )}
                 </TouchableOpacity>
               )}
@@ -120,7 +120,7 @@ export default function BusSelector({
                     <Ionicons 
                       name="bus" 
                       size={24} 
-                      color={selectedBusId === bus.id ? '#3B82F6' : '#9CA3AF'} 
+                      color={selectedBusId === bus.id ? '#F4B400' : '#A6ABB4'} 
                     />
                     <View style={styles.busItemText}>
                       <Text style={[
@@ -135,7 +135,7 @@ export default function BusSelector({
                     </View>
                   </View>
                   {selectedBusId === bus.id && (
-                    <Ionicons name="checkmark-circle" size={24} color="#3B82F6" />
+                    <Ionicons name="checkmark-circle" size={24} color="#F4B400" />
                   )}
                 </TouchableOpacity>
               ))}
@@ -155,11 +155,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
     padding: 14,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#4B5563',
+    borderColor: '#3A404A',
   },
   buttonContent: {
     flexDirection: 'row',
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   placeholderText: {
-    color: '#6B7280',
+    color: '#7B818C',
   },
   modalContainer: {
     flex: 1,
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '70%',
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    borderBottomColor: '#2B313A',
   },
   modalTitle: {
     fontSize: 20,
@@ -209,12 +209,12 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginBottom: 8,
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
   },
   busItemActive: {
-    backgroundColor: '#1E3A5F',
+    backgroundColor: '#33270A',
     borderWidth: 2,
-    borderColor: '#3B82F6',
+    borderColor: '#F4B400',
   },
   busItemContent: {
     flexDirection: 'row',
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   },
   busRegistration: {
     fontSize: 13,
-    color: '#9CA3AF',
+    color: '#A6ABB4',
     marginTop: 2,
   },
 });
