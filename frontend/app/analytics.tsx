@@ -1,10 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
@@ -12,16 +11,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
+import { useFocusEffect } from 'expo-router';
+import PeriodSelector from '../components/PeriodSelector';
+import BusSelector from '../components/BusSelector';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL + '/api';
 
-type Period = 'day' | 'week' | 'month';
-
-const PERIOD_LABELS: Record<Period, string> = {
-  day: 'Jour',
-  week: 'Semaine',
-  month: 'Mois',
-};
+type Period = 'day' | 'week' | 'month' | 'year';
 
 interface AnalyticsData {
   busId?: string;
@@ -30,37 +26,39 @@ interface AnalyticsData {
   totalDepenses?: number;
   recettesByCategory?: Record<string, number>;
   depensesByCategory?: Record<string, number>;
-  comparison?: Array<{
+  comparison?: {
     id: string;
     name: string;
     currency: string;
     recettes: number;
     depenses: number;
     balance: number;
-  }>;
+  }[];
 }
 
 export default function AnalyticsScreen() {
-  const [period, setPeriod] = useState<Period>('month');
   const [selectedBusId, setSelectedBusId] = useState<string>('');
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [currentPeriod, setCurrentPeriod] = useState<Period>('month');
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
+  const [currentWeek, setCurrentWeek] = useState<number | undefined>();
 
   const { buses, fetchBuses } = useStore();
 
-  useEffect(() => {
-    fetchBuses();
-  }, []);
-
-  useEffect(() => {
-    fetchAnalytics();
-  }, [period, selectedBusId]);
-
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      params.append('period', period);
+      params.append('period', currentPeriod);
+      params.append('year', currentYear.toString());
+      if (currentMonth && currentPeriod !== 'year') {
+        params.append('month', currentMonth.toString());
+      }
+      if (currentWeek && currentPeriod === 'week') {
+        params.append('week', currentWeek.toString());
+      }
       if (selectedBusId) {
         params.append('busId', selectedBusId);
       }
@@ -73,10 +71,36 @@ export default function AnalyticsScreen() {
     } finally {
       setLoading(false);
     }
+  }, [currentPeriod, currentYear, currentMonth, currentWeek, selectedBusId]);
+
+  const refreshAnalytics = useCallback(() => {
+    fetchBuses();
+    fetchAnalytics();
+  }, [fetchBuses, fetchAnalytics]);
+
+  useEffect(() => {
+    fetchBuses();
+  }, [fetchBuses]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshAnalytics();
+    }, [refreshAnalytics])
+  );
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [fetchAnalytics]);
+
+  const handlePeriodChange = (period: Period, year: number, month?: number, week?: number) => {
+    setCurrentPeriod(period);
+    setCurrentYear(year);
+    setCurrentMonth(month || new Date().getMonth() + 1);
+    setCurrentWeek(week);
   };
 
   const getCategoryColor = (index: number) => {
-    const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+    const colors = ['#F4B400', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
     return colors[index % colors.length];
   };
 
@@ -132,7 +156,7 @@ export default function AnalyticsScreen() {
         </View>
 
         <View style={[styles.summaryCard, styles.balanceCard]}>
-          <Ionicons name="wallet" size={24} color="#3B82F6" />
+          <Ionicons name="wallet" size={24} color="#F4B400" />
           <Text style={styles.summaryLabel}>Solde</Text>
           <Text style={[
             styles.summaryValue,
@@ -161,7 +185,7 @@ export default function AnalyticsScreen() {
                   hideRules
                   xAxisThickness={0}
                   yAxisThickness={0}
-                  yAxisTextStyle={{ color: '#9CA3AF' }}
+                  yAxisTextStyle={{ color: '#A6ABB4' }}
                   noOfSections={4}
                   maxValue={Math.max(
                     ...Object.values(analyticsData.recettesByCategory || {}),
@@ -274,7 +298,7 @@ export default function AnalyticsScreen() {
                   hideRules
                   xAxisThickness={0}
                   yAxisThickness={0}
-                  yAxisTextStyle={{ color: '#9CA3AF' }}
+                  yAxisTextStyle={{ color: '#A6ABB4' }}
                   noOfSections={4}
                   maxValue={Math.max(
                     ...analyticsData.comparison.map(b => Math.max(b.recettes, b.depenses))
@@ -289,7 +313,7 @@ export default function AnalyticsScreen() {
         {analyticsData.comparison.map((bus) => (
           <View key={bus.id} style={styles.busComparisonCard}>
             <View style={styles.busComparisonHeader}>
-              <Ionicons name="bus" size={24} color="#3B82F6" />
+              <Ionicons name="bus" size={24} color="#F4B400" />
               <Text style={styles.busComparisonName}>{bus.name}</Text>
             </View>
             <View style={styles.busComparisonStats}>
@@ -331,79 +355,28 @@ export default function AnalyticsScreen() {
         {/* Period Filter */}
         <View style={styles.filterSection}>
           <Text style={styles.filterLabel}>Période:</Text>
-          <View style={styles.periodFilter}>
-            {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
-              <TouchableOpacity
-                key={p}
-                style={[
-                  styles.periodButton,
-                  period === p && styles.periodButtonActive,
-                ]}
-                onPress={() => setPeriod(p)}
-              >
-                <Text
-                  style={[
-                    styles.periodButtonText,
-                    period === p && styles.periodButtonTextActive,
-                  ]}
-                >
-                  {PERIOD_LABELS[p]}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <PeriodSelector onPeriodChange={handlePeriodChange} />
         </View>
 
         {/* Bus Filter */}
         <View style={styles.filterSection}>
           <Text style={styles.filterLabel}>Bus:</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.busFilter}>
-            <TouchableOpacity
-              style={[
-                styles.busChip,
-                selectedBusId === '' && styles.busChipActive,
-              ]}
-              onPress={() => setSelectedBusId('')}
-            >
-              <Text
-                style={[
-                  styles.busChipText,
-                  selectedBusId === '' && styles.busChipTextActive,
-                ]}
-              >
-                Comparaison
-              </Text>
-            </TouchableOpacity>
-            {buses.map((bus) => (
-              <TouchableOpacity
-                key={bus.id}
-                style={[
-                  styles.busChip,
-                  selectedBusId === bus.id && styles.busChipActive,
-                ]}
-                onPress={() => setSelectedBusId(bus.id)}
-              >
-                <Text
-                  style={[
-                    styles.busChipText,
-                    selectedBusId === bus.id && styles.busChipTextActive,
-                  ]}
-                >
-                  {bus.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <BusSelector
+            buses={buses}
+            selectedBusId={selectedBusId}
+            onSelect={setSelectedBusId}
+            allowAll={true}
+          />
         </View>
 
         {/* Content */}
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#3B82F6" />
+            <ActivityIndicator size="large" color="#F4B400" />
           </View>
         ) : buses.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="bar-chart-outline" size={80} color="#6B7280" />
+            <Ionicons name="bar-chart-outline" size={80} color="#7B818C" />
             <Text style={styles.emptyText}>Aucune donnée disponible</Text>
             <Text style={styles.emptySubtext}>Ajoutez des bus et des transactions pour voir les analyses</Text>
           </View>
@@ -420,13 +393,13 @@ export default function AnalyticsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: '#0D0F12',
   },
   header: {
     padding: 16,
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    borderBottomColor: '#2B313A',
   },
   headerTitle: {
     fontSize: 24,
@@ -438,9 +411,9 @@ const styles = StyleSheet.create({
   },
   filterSection: {
     padding: 16,
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    borderBottomColor: '#2B313A',
   },
   filterLabel: {
     fontSize: 14,
@@ -456,11 +429,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
     alignItems: 'center',
   },
   periodButtonActive: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#F4B400',
   },
   periodButtonText: {
     color: '#D1D5DB',
@@ -477,11 +450,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#374151',
+    backgroundColor: '#2B313A',
     marginRight: 8,
   },
   busChipActive: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#F4B400',
   },
   busChipText: {
     color: '#D1D5DB',
@@ -502,12 +475,12 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#9CA3AF',
+    color: '#A6ABB4',
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#7B818C',
     marginTop: 8,
     textAlign: 'center',
     paddingHorizontal: 32,
@@ -519,12 +492,12 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     flex: 1,
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#2B313A',
   },
   recetteCard: {
     borderLeftWidth: 4,
@@ -538,11 +511,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
+    borderLeftColor: '#F4B400',
   },
   summaryLabel: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: '#A6ABB4',
     marginTop: 8,
   },
   summaryValue: {
@@ -552,12 +525,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   chartCard: {
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     margin: 16,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#2B313A',
   },
   chartTitle: {
     fontSize: 16,
@@ -575,12 +548,12 @@ const styles = StyleSheet.create({
   },
   pieChartCard: {
     flex: 1,
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#2B313A',
   },
   legend: {
     marginTop: 16,
@@ -604,16 +577,16 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#A6ABB4',
   },
   busComparisonCard: {
-    backgroundColor: '#1F2937',
+    backgroundColor: '#171A1F',
     margin: 16,
     marginTop: 0,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#2B313A',
   },
   busComparisonHeader: {
     flexDirection: 'row',
@@ -622,7 +595,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    borderBottomColor: '#2B313A',
   },
   busComparisonName: {
     fontSize: 18,
@@ -639,7 +612,7 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#A6ABB4',
     marginBottom: 4,
   },
   statValue: {

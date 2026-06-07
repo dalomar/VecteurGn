@@ -63,7 +63,7 @@ interface AppState {
   deleteTransaction: (id: string) => Promise<void>;
   
   // Stats actions
-  fetchRanking: (period: 'day' | 'week' | 'month' | 'year') => Promise<void>;
+  fetchRanking: (period: 'day' | 'week' | 'month' | 'year', year?: number, month?: number, week?: number) => Promise<void>;
   fetchBalance: () => Promise<void>;
   fetchBusBalances: () => Promise<void>;
 }
@@ -96,8 +96,10 @@ export const useStore = create<AppState>((set, get) => ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bus),
       });
-      const newBus = await response.json();
-      set({ buses: [...get().buses, newBus] });
+      if (!response.ok) {
+        throw new Error('Failed to create bus');
+      }
+      await get().fetchBuses();
     } catch (error) {
       console.error('Error creating bus:', error);
       throw error;
@@ -111,8 +113,10 @@ export const useStore = create<AppState>((set, get) => ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bus),
       });
-      const updatedBus = await response.json();
-      set({ buses: get().buses.map(b => b.id === id ? updatedBus : b) });
+      if (!response.ok) {
+        throw new Error('Failed to update bus');
+      }
+      await get().fetchBuses();
     } catch (error) {
       console.error('Error updating bus:', error);
       throw error;
@@ -121,8 +125,11 @@ export const useStore = create<AppState>((set, get) => ({
   
   deleteBus: async (id) => {
     try {
-      await fetch(`${API_URL}/buses/${id}`, { method: 'DELETE' });
-      set({ buses: get().buses.filter(b => b.id !== id) });
+      const response = await fetch(`${API_URL}/buses/${id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        throw new Error('Failed to delete bus');
+      }
+      await Promise.all([get().fetchBuses(), get().fetchTransactions()]);
     } catch (error) {
       console.error('Error deleting bus:', error);
       throw error;
@@ -153,8 +160,10 @@ export const useStore = create<AppState>((set, get) => ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(transaction),
       });
-      const newTransaction = await response.json();
-      set({ transactions: [newTransaction, ...get().transactions] });
+      if (!response.ok) {
+        throw new Error('Failed to create transaction');
+      }
+      await get().fetchTransactions();
     } catch (error) {
       console.error('Error creating transaction:', error);
       throw error;
@@ -168,8 +177,10 @@ export const useStore = create<AppState>((set, get) => ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(transaction),
       });
-      const updatedTransaction = await response.json();
-      set({ transactions: get().transactions.map(t => t.id === id ? updatedTransaction : t) });
+      if (!response.ok) {
+        throw new Error('Failed to update transaction');
+      }
+      await get().fetchTransactions();
     } catch (error) {
       console.error('Error updating transaction:', error);
       throw error;
@@ -178,8 +189,11 @@ export const useStore = create<AppState>((set, get) => ({
   
   deleteTransaction: async (id) => {
     try {
-      await fetch(`${API_URL}/transactions/${id}`, { method: 'DELETE' });
-      set({ transactions: get().transactions.filter(t => t.id !== id) });
+      const response = await fetch(`${API_URL}/transactions/${id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        throw new Error('Failed to delete transaction');
+      }
+      await get().fetchTransactions();
     } catch (error) {
       console.error('Error deleting transaction:', error);
       throw error;
@@ -187,9 +201,15 @@ export const useStore = create<AppState>((set, get) => ({
   },
   
   // Stats actions
-  fetchRanking: async (period) => {
+  fetchRanking: async (period, year?, month?, week?) => {
     try {
-      const response = await fetch(`${API_URL}/stats/ranking?period=${period}`);
+      const params = new URLSearchParams();
+      params.append('period', period);
+      if (year) params.append('year', year.toString());
+      if (month) params.append('month', month.toString());
+      if (week) params.append('week', week.toString());
+      
+      const response = await fetch(`${API_URL}/stats/ranking?${params.toString()}`);
       const data = await response.json();
       set({ ranking: data });
     } catch (error) {
