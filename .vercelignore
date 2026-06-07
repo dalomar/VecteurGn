@@ -1,5 +1,4 @@
 backend/requirements.txt
-frontend/
 .git/
 .claude/
 *.db
