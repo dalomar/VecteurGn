@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "cd frontend && yarn install --frozen-lockfile && npx expo export --platform web",
+  "buildCommand": "cd frontend && yarn install && yarn expo export --platform web",
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
