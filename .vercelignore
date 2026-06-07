@@ -1,0 +1,7 @@
+backend/requirements.txt
+frontend/
+.git/
+.claude/
+*.db
+*.db-shm
+*.db-wal
