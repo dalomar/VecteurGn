@@ -14,10 +14,10 @@ Les montants sont en **GNF** (Franc Guinéen, grands entiers ~1 000 000) ou **EU
 |--------|--------|
 | Frontend | React Native + Expo Router (tabs), TypeScript |
 | État global | Zustand (`frontend/store/index.ts`) |
-| Backend | FastAPI (Python) + libsql-client (Turso/libSQL) |
+| Backend | FastAPI (Python) + asyncpg (PostgreSQL) |
 | Auth | JWT (HS256, 7 jours) + bcrypt via passlib |
-| DB locale | libSQL — fichier `backend/vecteur_gn.db` (via `file:` URI) |
-| DB production | Turso cloud (`libsql://vecteurgn-*.turso.io`) |
+| DB locale | PostgreSQL local (`postgresql://localhost/vecteurgn`) |
+| DB production | PostgreSQL cloud (Neon, Supabase, Railway…) |
 | Déploiement | Vercel (frontend statique Expo + API Python serverless) |
 
 ---
@@ -40,7 +40,7 @@ frontend/
     PeriodSelector.tsx
 
 backend/
-  server.py            — Toutes les routes FastAPI + client libsql global
+  server.py            — Toutes les routes FastAPI + pool asyncpg global
   auth.py              — JWT + bcrypt helpers
 
 api/
@@ -64,30 +64,34 @@ Compte admin par défaut : `vecteur` / `vecteurgn`
 
 ---
 
-## Accès base de données (libsql-client)
+## Accès base de données (asyncpg + PostgreSQL)
 
-Le client global `db` est initialisé au démarrage dans `backend/server.py`.
+Le pool global `pool` est initialisé au démarrage dans `backend/server.py`.
+Les colonnes SQL sont en **snake_case** (`bus_id`, `daily_target`, `created_at`) ; les helpers font la conversion vers camelCase pour l'API.
 
 ```python
 # Lecture d'une ligne
-result = await db.execute("SELECT * FROM buses WHERE id = ?", [bus_id])
-if not result.rows:
+async with pool.acquire() as conn:
+    row = await conn.fetchrow("SELECT * FROM buses WHERE id = $1", bus_id)
+if not row:
     raise HTTPException(status_code=404)
-return _row(result)   # → dict
+return bus_helper(_row(row))   # → dict camelCase
 
 # Lecture multiple
-result = await db.execute("SELECT * FROM buses")
-return _rows(result)  # → List[dict]
+async with pool.acquire() as conn:
+    rows = await conn.fetch("SELECT * FROM buses")
+return [bus_helper(r) for r in _rows(rows)]
 
-# DELETE / UPDATE : vérifier rows_affected
-result = await db.execute("DELETE FROM buses WHERE id = ?", [bus_id])
-if result.rows_affected == 0:
+# DELETE avec vérification : utiliser RETURNING
+async with pool.acquire() as conn:
+    deleted = await conn.fetchrow("DELETE FROM buses WHERE id = $1 RETURNING id", bus_id)
+if not deleted:
     raise HTTPException(status_code=404)
 ```
 
-- **Pas de `conn.commit()`** — Turso est auto-commit
-- Les paramètres sont des **listes** `[val]`, pas des tuples `(val,)`
-- DDL groupé via `db.batch([...])`
+- Paramètres positionnels : `$1, $2, $3…` (pas `?`)
+- Pas de `commit()` — auto-commit par défaut avec asyncpg
+- `pool.acquire()` comme context manager pour chaque requête
 
 ---
 
@@ -128,8 +132,7 @@ if result.rows_affected == 0:
 
 | Variable | Description |
 |----------|-------------|
-| `TURSO_DATABASE_URL` | `libsql://vecteurgn-[username].turso.io` |
-| `TURSO_AUTH_TOKEN` | Token généré depuis app.turso.tech |
+| `DATABASE_URL` | `postgresql://user:pass@host/dbname` (Neon, Supabase, Railway…) |
 | `SECRET_KEY` | Clé secrète JWT |
 | `EXPO_PUBLIC_BACKEND_URL` | URL du projet Vercel (ex: `https://vecteurgn.vercel.app`) |
 
@@ -138,7 +141,7 @@ if result.rows_affected == 0:
 Fichier `backend/.env` (non commité) :
 ```
 SECRET_KEY=vecteur-gn-secret-key-change-in-production
-TURSO_DATABASE_URL=file:vecteur_gn.db
+DATABASE_URL=postgresql://localhost/vecteurgn
 ```
 
 Fichier `frontend/.env.local` (non commité) :
