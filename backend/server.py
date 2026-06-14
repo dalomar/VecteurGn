@@ -1,7 +1,7 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-import libsql_client
+import asyncpg
 import os
 import logging
 import json
@@ -22,11 +22,9 @@ from auth import (
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-_db_path = ROOT_DIR / f"{os.environ.get('DB_NAME', 'vecteur_gn')}.db"
-TURSO_URL = os.environ.get('TURSO_DATABASE_URL', _db_path.as_uri())
-TURSO_TOKEN = os.environ.get('TURSO_AUTH_TOKEN')
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
-db = None  # libsql_client.Client, set at startup
+pool: asyncpg.Pool = None
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -40,12 +38,11 @@ logger = logging.getLogger(__name__)
 
 # ── DB row helpers ────────────────────────────────────────────────────────────
 
-def _row(result: libsql_client.ExecuteResult, index: int = 0) -> dict:
-    return dict(zip(result.columns, result.rows[index]))
+def _row(record) -> dict:
+    return dict(record)
 
-def _rows(result: libsql_client.ExecuteResult) -> List[dict]:
-    cols = result.columns
-    return [dict(zip(cols, r)) for r in result.rows]
+def _rows(records) -> List[dict]:
+    return [dict(r) for r in records]
 
 
 # ── Domain helpers ────────────────────────────────────────────────────────────
@@ -54,7 +51,7 @@ def bus_helper(bus: dict) -> dict:
     staff = bus["staff"]
     if isinstance(staff, str):
         staff = json.loads(staff)
-    created_at = bus["createdAt"]
+    created_at = bus["created_at"]
     if isinstance(created_at, str):
         created_at = datetime.fromisoformat(created_at)
     return {
@@ -62,7 +59,7 @@ def bus_helper(bus: dict) -> dict:
         "name": bus["name"],
         "registration": bus["registration"],
         "currency": bus["currency"],
-        "dailyTarget": bus["dailyTarget"],
+        "dailyTarget": bus["daily_target"],
         "staff": staff,
         "createdAt": created_at,
     }
@@ -70,14 +67,14 @@ def bus_helper(bus: dict) -> dict:
 
 def transaction_helper(t: dict) -> dict:
     date = t["date"]
-    created_at = t["createdAt"]
+    created_at = t["created_at"]
     if isinstance(date, str):
         date = datetime.fromisoformat(date)
     if isinstance(created_at, str):
         created_at = datetime.fromisoformat(created_at)
     return {
         "id": t["id"],
-        "busId": t["busId"],
+        "busId": t["bus_id"],
         "type": t["type"],
         "category": t["category"],
         "amount": t["amount"],
@@ -88,7 +85,7 @@ def transaction_helper(t: dict) -> dict:
 
 
 def user_helper(u: dict) -> dict:
-    created_at = u["createdAt"]
+    created_at = u["created_at"]
     if isinstance(created_at, str):
         created_at = datetime.fromisoformat(created_at)
     return {
@@ -158,61 +155,66 @@ class Transaction(BaseModel):
 
 @app.on_event("startup")
 async def init_db():
-    global db
-    db = libsql_client.create_client(url=TURSO_URL, auth_token=TURSO_TOKEN)
+    global pool
+    pool = await asyncpg.create_pool(DATABASE_URL)
 
-    await db.batch([
-        """CREATE TABLE IF NOT EXISTS users (
-            id TEXT PRIMARY KEY,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'user',
-            createdAt TEXT NOT NULL
-        )""",
-        """CREATE TABLE IF NOT EXISTS buses (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            registration TEXT NOT NULL,
-            currency TEXT NOT NULL,
-            dailyTarget REAL NOT NULL,
-            staff TEXT NOT NULL,
-            createdAt TEXT NOT NULL
-        )""",
-        """CREATE TABLE IF NOT EXISTS transactions (
-            id TEXT PRIMARY KEY,
-            busId TEXT NOT NULL,
-            type TEXT NOT NULL,
-            category TEXT NOT NULL,
-            amount REAL NOT NULL,
-            description TEXT DEFAULT '',
-            date TEXT NOT NULL,
-            createdAt TEXT NOT NULL,
-            FOREIGN KEY (busId) REFERENCES buses(id)
-        )""",
-    ])
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'user',
+                created_at TEXT NOT NULL
+            )
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS buses (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                registration TEXT NOT NULL,
+                currency TEXT NOT NULL,
+                daily_target FLOAT NOT NULL,
+                staff TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS transactions (
+                id TEXT PRIMARY KEY,
+                bus_id TEXT NOT NULL,
+                type TEXT NOT NULL,
+                category TEXT NOT NULL,
+                amount FLOAT NOT NULL,
+                description TEXT DEFAULT '',
+                date TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (bus_id) REFERENCES buses(id)
+            )
+        """)
 
-    result = await db.execute("SELECT id FROM users WHERE username = 'vecteur'")
-    if not result.rows:
-        await db.execute(
-            "INSERT INTO users (id, username, password, role, createdAt) VALUES (?, ?, ?, ?, ?)",
-            [str(uuid.uuid4()), "vecteur", get_password_hash("vecteurgn"), "admin", datetime.utcnow().isoformat()]
-        )
-        logger.info("Default admin user created: vecteur")
+        row = await conn.fetchrow("SELECT id FROM users WHERE username = 'vecteur'")
+        if not row:
+            await conn.execute(
+                "INSERT INTO users (id, username, password, role, created_at) VALUES ($1, $2, $3, $4, $5)",
+                str(uuid.uuid4()), "vecteur", get_password_hash("vecteurgn"), "admin", datetime.utcnow().isoformat()
+            )
+            logger.info("Default admin user created: vecteur")
 
 
 # ── Auth Routes ───────────────────────────────────────────────────────────────
 
 @api_router.post("/auth/login")
 async def login(user_login: UserLogin):
-    result = await db.execute("SELECT * FROM users WHERE username = ?", [user_login.username])
-    user = _row(result) if result.rows else None
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM users WHERE username = $1", user_login.username)
 
-    if not user or not verify_password(user_login.password, user["password"]):
+    if not row or not verify_password(user_login.password, row["password"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Username ou mot de passe incorrect"
         )
-
+    user = _row(row)
     access_token = create_access_token(
         data={"sub": user_login.username, "role": user["role"], "id": user["id"]}
     )
@@ -225,33 +227,36 @@ async def login(user_login: UserLogin):
 
 @api_router.get("/auth/me")
 async def get_me(current_user: dict = Depends(get_current_user)):
-    result = await db.execute("SELECT * FROM users WHERE username = ?", [current_user["sub"]])
-    if not result.rows:
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM users WHERE username = $1", current_user["sub"])
+    if not row:
         raise HTTPException(status_code=404, detail="User not found")
-    return user_helper(_row(result))
+    return user_helper(_row(row))
 
 
 # ── User Management (Admin) ───────────────────────────────────────────────────
 
 @api_router.post("/users", response_model=UserResponse)
 async def create_user(user: UserCreate, current_user: dict = Depends(require_admin)):
-    check = await db.execute("SELECT id FROM users WHERE username = ?", [user.username])
-    if check.rows:
-        raise HTTPException(status_code=400, detail="Username already exists")
+    async with pool.acquire() as conn:
+        existing = await conn.fetchrow("SELECT id FROM users WHERE username = $1", user.username)
+        if existing:
+            raise HTTPException(status_code=400, detail="Username already exists")
 
-    new_id = str(uuid.uuid4())
-    await db.execute(
-        "INSERT INTO users (id, username, password, role, createdAt) VALUES (?, ?, ?, ?, ?)",
-        [new_id, user.username, get_password_hash(user.password), user.role, datetime.utcnow().isoformat()]
-    )
-    result = await db.execute("SELECT * FROM users WHERE id = ?", [new_id])
-    return user_helper(_row(result))
+        new_id = str(uuid.uuid4())
+        await conn.execute(
+            "INSERT INTO users (id, username, password, role, created_at) VALUES ($1, $2, $3, $4, $5)",
+            new_id, user.username, get_password_hash(user.password), user.role, datetime.utcnow().isoformat()
+        )
+        row = await conn.fetchrow("SELECT * FROM users WHERE id = $1", new_id)
+    return user_helper(_row(row))
 
 
 @api_router.get("/users", response_model=List[UserResponse])
 async def get_users(current_user: dict = Depends(require_admin)):
-    result = await db.execute("SELECT * FROM users")
-    return [user_helper(r) for r in _rows(result)]
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM users")
+    return [user_helper(r) for r in _rows(rows)]
 
 
 @api_router.put("/users/{user_id}/role", response_model=UserResponse)
@@ -259,11 +264,12 @@ async def update_user_role(user_id: str, user_update: UserUpdate, current_user: 
     if current_user.get("id") == user_id:
         raise HTTPException(status_code=400, detail="Cannot change your own role")
 
-    await db.execute("UPDATE users SET role = ? WHERE id = ?", [user_update.role, user_id])
-    result = await db.execute("SELECT * FROM users WHERE id = ?", [user_id])
-    if not result.rows:
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE users SET role = $1 WHERE id = $2", user_update.role, user_id)
+        row = await conn.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
+    if not row:
         raise HTTPException(status_code=404, detail="User not found")
-    return user_helper(_row(result))
+    return user_helper(_row(row))
 
 
 @api_router.delete("/users/{user_id}")
@@ -271,8 +277,9 @@ async def delete_user(user_id: str, current_user: dict = Depends(require_admin))
     if current_user.get("id") == user_id:
         raise HTTPException(status_code=400, detail="Cannot delete yourself")
 
-    result = await db.execute("DELETE FROM users WHERE id = ?", [user_id])
-    if result.rows_affected == 0:
+    async with pool.acquire() as conn:
+        deleted = await conn.fetchrow("DELETE FROM users WHERE id = $1 RETURNING id", user_id)
+    if not deleted:
         raise HTTPException(status_code=404, detail="User not found")
     return {"message": "User deleted successfully"}
 
@@ -282,47 +289,52 @@ async def delete_user(user_id: str, current_user: dict = Depends(require_admin))
 @api_router.post("/buses", response_model=Bus)
 async def create_bus(bus: BusCreate):
     new_id = str(uuid.uuid4())
-    await db.execute(
-        "INSERT INTO buses (id, name, registration, currency, dailyTarget, staff, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [new_id, bus.name, bus.registration, bus.currency, bus.dailyTarget,
-         json.dumps(bus.staff), datetime.utcnow().isoformat()]
-    )
-    result = await db.execute("SELECT * FROM buses WHERE id = ?", [new_id])
-    return bus_helper(_row(result))
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO buses (id, name, registration, currency, daily_target, staff, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            new_id, bus.name, bus.registration, bus.currency, bus.dailyTarget,
+            json.dumps(bus.staff), datetime.utcnow().isoformat()
+        )
+        row = await conn.fetchrow("SELECT * FROM buses WHERE id = $1", new_id)
+    return bus_helper(_row(row))
 
 
 @api_router.get("/buses", response_model=List[Bus])
 async def get_buses():
-    result = await db.execute("SELECT * FROM buses")
-    return [bus_helper(r) for r in _rows(result)]
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM buses")
+    return [bus_helper(r) for r in _rows(rows)]
 
 
 @api_router.get("/buses/{bus_id}", response_model=Bus)
 async def get_bus(bus_id: str):
-    result = await db.execute("SELECT * FROM buses WHERE id = ?", [bus_id])
-    if not result.rows:
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM buses WHERE id = $1", bus_id)
+    if not row:
         raise HTTPException(status_code=404, detail="Bus non trouvé")
-    return bus_helper(_row(result))
+    return bus_helper(_row(row))
 
 
 @api_router.put("/buses/{bus_id}", response_model=Bus)
 async def update_bus(bus_id: str, bus: BusCreate):
-    await db.execute(
-        "UPDATE buses SET name=?, registration=?, currency=?, dailyTarget=?, staff=? WHERE id=?",
-        [bus.name, bus.registration, bus.currency, bus.dailyTarget, json.dumps(bus.staff), bus_id]
-    )
-    result = await db.execute("SELECT * FROM buses WHERE id = ?", [bus_id])
-    if not result.rows:
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE buses SET name=$1, registration=$2, currency=$3, daily_target=$4, staff=$5 WHERE id=$6",
+            bus.name, bus.registration, bus.currency, bus.dailyTarget, json.dumps(bus.staff), bus_id
+        )
+        row = await conn.fetchrow("SELECT * FROM buses WHERE id = $1", bus_id)
+    if not row:
         raise HTTPException(status_code=404, detail="Bus non trouvé")
-    return bus_helper(_row(result))
+    return bus_helper(_row(row))
 
 
 @api_router.delete("/buses/{bus_id}")
 async def delete_bus(bus_id: str):
-    result = await db.execute("DELETE FROM buses WHERE id = ?", [bus_id])
-    if result.rows_affected == 0:
-        raise HTTPException(status_code=404, detail="Bus non trouvé")
-    await db.execute("DELETE FROM transactions WHERE busId = ?", [bus_id])
+    async with pool.acquire() as conn:
+        deleted = await conn.fetchrow("DELETE FROM buses WHERE id = $1 RETURNING id", bus_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Bus non trouvé")
+        await conn.execute("DELETE FROM transactions WHERE bus_id = $1", bus_id)
     return {"message": "Bus supprimé avec succès"}
 
 
@@ -330,63 +342,68 @@ async def delete_bus(bus_id: str):
 
 @api_router.post("/transactions", response_model=Transaction)
 async def create_transaction(transaction: TransactionCreate):
-    check = await db.execute("SELECT id FROM buses WHERE id = ?", [transaction.busId])
-    if not check.rows:
-        raise HTTPException(status_code=404, detail="Bus non trouvé")
+    async with pool.acquire() as conn:
+        check = await conn.fetchrow("SELECT id FROM buses WHERE id = $1", transaction.busId)
+        if not check:
+            raise HTTPException(status_code=404, detail="Bus non trouvé")
 
-    new_id = str(uuid.uuid4())
-    date_str = transaction.date.isoformat()
-    await db.execute(
-        "INSERT INTO transactions (id, busId, type, category, amount, description, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        [new_id, transaction.busId, transaction.type, transaction.category,
-         transaction.amount, transaction.description or "", date_str, datetime.utcnow().isoformat()]
-    )
-    result = await db.execute("SELECT * FROM transactions WHERE id = ?", [new_id])
-    return transaction_helper(_row(result))
+        new_id = str(uuid.uuid4())
+        date_str = transaction.date.isoformat()
+        await conn.execute(
+            "INSERT INTO transactions (id, bus_id, type, category, amount, description, date, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+            new_id, transaction.busId, transaction.type, transaction.category,
+            transaction.amount, transaction.description or "", date_str, datetime.utcnow().isoformat()
+        )
+        row = await conn.fetchrow("SELECT * FROM transactions WHERE id = $1", new_id)
+    return transaction_helper(_row(row))
 
 
 @api_router.get("/transactions", response_model=List[Transaction])
 async def get_transactions(busId: Optional[str] = None, type: Optional[str] = None):
-    query = "SELECT * FROM transactions WHERE 1=1"
-    params: list = []
+    conditions = []
+    params = []
     if busId:
-        query += " AND busId = ?"
         params.append(busId)
+        conditions.append(f"bus_id = ${len(params)}")
     if type:
-        query += " AND type = ?"
         params.append(type)
-    query += " ORDER BY date DESC"
-
-    result = await db.execute(query, params)
-    return [transaction_helper(r) for r in _rows(result)]
+        conditions.append(f"type = ${len(params)}")
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    query = f"SELECT * FROM transactions {where} ORDER BY date DESC"
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(query, *params)
+    return [transaction_helper(r) for r in _rows(rows)]
 
 
 @api_router.get("/transactions/{transaction_id}", response_model=Transaction)
 async def get_transaction(transaction_id: str):
-    result = await db.execute("SELECT * FROM transactions WHERE id = ?", [transaction_id])
-    if not result.rows:
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM transactions WHERE id = $1", transaction_id)
+    if not row:
         raise HTTPException(status_code=404, detail="Transaction non trouvée")
-    return transaction_helper(_row(result))
+    return transaction_helper(_row(row))
 
 
 @api_router.put("/transactions/{transaction_id}", response_model=Transaction)
 async def update_transaction(transaction_id: str, transaction: TransactionCreate):
     date_str = transaction.date.isoformat()
-    await db.execute(
-        "UPDATE transactions SET busId=?, type=?, category=?, amount=?, description=?, date=? WHERE id=?",
-        [transaction.busId, transaction.type, transaction.category,
-         transaction.amount, transaction.description or "", date_str, transaction_id]
-    )
-    result = await db.execute("SELECT * FROM transactions WHERE id = ?", [transaction_id])
-    if not result.rows:
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE transactions SET bus_id=$1, type=$2, category=$3, amount=$4, description=$5, date=$6 WHERE id=$7",
+            transaction.busId, transaction.type, transaction.category,
+            transaction.amount, transaction.description or "", date_str, transaction_id
+        )
+        row = await conn.fetchrow("SELECT * FROM transactions WHERE id = $1", transaction_id)
+    if not row:
         raise HTTPException(status_code=404, detail="Transaction non trouvée")
-    return transaction_helper(_row(result))
+    return transaction_helper(_row(row))
 
 
 @api_router.delete("/transactions/{transaction_id}")
 async def delete_transaction(transaction_id: str):
-    result = await db.execute("DELETE FROM transactions WHERE id = ?", [transaction_id])
-    if result.rows_affected == 0:
+    async with pool.acquire() as conn:
+        deleted = await conn.fetchrow("DELETE FROM transactions WHERE id = $1 RETURNING id", transaction_id)
+    if not deleted:
         raise HTTPException(status_code=404, detail="Transaction non trouvée")
     return {"message": "Transaction supprimée avec succès"}
 
@@ -434,33 +451,33 @@ async def get_ranking(
     start_str = start_date.isoformat()
     end_str = end_date.isoformat()
 
-    buses = _rows(await db.execute("SELECT * FROM buses"))
+    async with pool.acquire() as conn:
+        buses = _rows(await conn.fetch("SELECT * FROM buses"))
+        ranking = []
+        for bus in buses:
+            recettes_rows = await conn.fetch(
+                "SELECT amount FROM transactions WHERE bus_id=$1 AND type='recette' AND date >= $2 AND date < $3",
+                bus["id"], start_str, end_str
+            )
+            total_recettes = sum(r["amount"] for r in recettes_rows)
+            target = bus["daily_target"] * days_in_period
+            percentage = (total_recettes / target * 100) if target > 0 else 0
 
-    ranking = []
-    for bus in buses:
-        recettes_result = await db.execute(
-            "SELECT amount FROM transactions WHERE busId=? AND type='recette' AND date >= ? AND date < ?",
-            [bus["id"], start_str, end_str]
-        )
-        total_recettes = sum(r["amount"] for r in recettes_result.rows)
-        target = bus["dailyTarget"] * days_in_period
-        percentage = (total_recettes / target * 100) if target > 0 else 0
-
-        ranking.append({
-            "id": bus["id"],
-            "name": bus["name"],
-            "registration": bus["registration"],
-            "currency": bus["currency"],
-            "revenue": total_recettes,
-            "target": target,
-            "percentage": min(percentage, 999),
-            "period_info": {
-                "year": target_year,
-                "month": target_month if period in ["month", "week"] else None,
-                "week": week if period == "week" else None,
-                "working_days": days_in_period,
-            }
-        })
+            ranking.append({
+                "id": bus["id"],
+                "name": bus["name"],
+                "registration": bus["registration"],
+                "currency": bus["currency"],
+                "revenue": total_recettes,
+                "target": target,
+                "percentage": min(percentage, 999),
+                "period_info": {
+                    "year": target_year,
+                    "month": target_month if period in ["month", "week"] else None,
+                    "week": week if period == "week" else None,
+                    "working_days": days_in_period,
+                }
+            })
 
     ranking.sort(key=lambda x: x["revenue"], reverse=True)
     return ranking
@@ -468,15 +485,16 @@ async def get_ranking(
 
 @api_router.get("/stats/balance")
 async def get_total_balance():
-    result = await db.execute("""
-        SELECT t.type, t.amount, b.currency
-        FROM transactions t
-        JOIN buses b ON t.busId = b.id
-    """)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT t.type, t.amount, b.currency
+            FROM transactions t
+            JOIN buses b ON t.bus_id = b.id
+        """)
 
     balance_gnf = 0.0
     balance_eur = 0.0
-    for row in result.rows:
+    for row in rows:
         amount = row["amount"]
         if row["type"] == "recette":
             if row["currency"] == "GNF":
@@ -494,24 +512,23 @@ async def get_total_balance():
 
 @api_router.get("/stats/balance-per-bus")
 async def get_balance_per_bus():
-    buses = _rows(await db.execute("SELECT * FROM buses"))
-
-    balances = []
-    for bus in buses:
-        result = await db.execute(
-            "SELECT type, amount FROM transactions WHERE busId = ?", [bus["id"]]
-        )
-        total_recettes = sum(r["amount"] for r in result.rows if r["type"] == "recette")
-        total_depenses = sum(r["amount"] for r in result.rows if r["type"] == "depense")
-        balances.append({
-            "id": bus["id"],
-            "name": bus["name"],
-            "currency": bus["currency"],
-            "recettes": total_recettes,
-            "depenses": total_depenses,
-            "balance": total_recettes - total_depenses,
-        })
-
+    async with pool.acquire() as conn:
+        buses = _rows(await conn.fetch("SELECT * FROM buses"))
+        balances = []
+        for bus in buses:
+            rows = await conn.fetch(
+                "SELECT type, amount FROM transactions WHERE bus_id = $1", bus["id"]
+            )
+            total_recettes = sum(r["amount"] for r in rows if r["type"] == "recette")
+            total_depenses = sum(r["amount"] for r in rows if r["type"] == "depense")
+            balances.append({
+                "id": bus["id"],
+                "name": bus["name"],
+                "currency": bus["currency"],
+                "recettes": total_recettes,
+                "depenses": total_depenses,
+                "balance": total_recettes - total_depenses,
+            })
     return balances
 
 
@@ -550,67 +567,66 @@ async def get_analytics(
     start_str = start_date.isoformat()
     end_str = end_date.isoformat()
 
-    if busId:
-        result = await db.execute(
-            "SELECT type, category, amount FROM transactions WHERE busId=? AND date >= ? AND date < ?",
-            [busId, start_str, end_str]
-        )
-
-        recettes_by_category: dict = {}
-        depenses_by_category: dict = {}
-        total_recettes = 0.0
-        total_depenses = 0.0
-
-        for t in result.rows:
-            if t["type"] == "recette":
-                total_recettes += t["amount"]
-                recettes_by_category[t["category"]] = recettes_by_category.get(t["category"], 0) + t["amount"]
-            else:
-                total_depenses += t["amount"]
-                depenses_by_category[t["category"]] = depenses_by_category.get(t["category"], 0) + t["amount"]
-
-        return {
-            "busId": busId,
-            "period": period,
-            "totalRecettes": total_recettes,
-            "totalDepenses": total_depenses,
-            "recettesByCategory": recettes_by_category,
-            "depensesByCategory": depenses_by_category,
-            "period_info": {
-                "year": target_year,
-                "month": target_month if period in ["month", "week", "day"] else None,
-                "week": week if period == "week" else None,
-            }
-        }
-    else:
-        buses = _rows(await db.execute("SELECT * FROM buses"))
-        comparison = []
-
-        for bus in buses:
-            result = await db.execute(
-                "SELECT type, amount FROM transactions WHERE busId=? AND date >= ? AND date < ?",
-                [bus["id"], start_str, end_str]
+    async with pool.acquire() as conn:
+        if busId:
+            rows = await conn.fetch(
+                "SELECT type, category, amount FROM transactions WHERE bus_id=$1 AND date >= $2 AND date < $3",
+                busId, start_str, end_str
             )
-            total_recettes = sum(t["amount"] for t in result.rows if t["type"] == "recette")
-            total_depenses = sum(t["amount"] for t in result.rows if t["type"] == "depense")
-            comparison.append({
-                "id": bus["id"],
-                "name": bus["name"],
-                "currency": bus["currency"],
-                "recettes": total_recettes,
-                "depenses": total_depenses,
-                "balance": total_recettes - total_depenses,
-            })
+            recettes_by_category: dict = {}
+            depenses_by_category: dict = {}
+            total_recettes = 0.0
+            total_depenses = 0.0
 
-        return {
-            "period": period,
-            "comparison": comparison,
-            "period_info": {
-                "year": target_year,
-                "month": target_month if period in ["month", "week", "day"] else None,
-                "week": week if period == "week" else None,
+            for t in rows:
+                if t["type"] == "recette":
+                    total_recettes += t["amount"]
+                    recettes_by_category[t["category"]] = recettes_by_category.get(t["category"], 0) + t["amount"]
+                else:
+                    total_depenses += t["amount"]
+                    depenses_by_category[t["category"]] = depenses_by_category.get(t["category"], 0) + t["amount"]
+
+            return {
+                "busId": busId,
+                "period": period,
+                "totalRecettes": total_recettes,
+                "totalDepenses": total_depenses,
+                "recettesByCategory": recettes_by_category,
+                "depensesByCategory": depenses_by_category,
+                "period_info": {
+                    "year": target_year,
+                    "month": target_month if period in ["month", "week", "day"] else None,
+                    "week": week if period == "week" else None,
+                }
             }
-        }
+        else:
+            buses = _rows(await conn.fetch("SELECT * FROM buses"))
+            comparison = []
+            for bus in buses:
+                rows = await conn.fetch(
+                    "SELECT type, amount FROM transactions WHERE bus_id=$1 AND date >= $2 AND date < $3",
+                    bus["id"], start_str, end_str
+                )
+                total_recettes = sum(t["amount"] for t in rows if t["type"] == "recette")
+                total_depenses = sum(t["amount"] for t in rows if t["type"] == "depense")
+                comparison.append({
+                    "id": bus["id"],
+                    "name": bus["name"],
+                    "currency": bus["currency"],
+                    "recettes": total_recettes,
+                    "depenses": total_depenses,
+                    "balance": total_recettes - total_depenses,
+                })
+
+            return {
+                "period": period,
+                "comparison": comparison,
+                "period_info": {
+                    "year": target_year,
+                    "month": target_month if period in ["month", "week", "day"] else None,
+                    "week": week if period == "week" else None,
+                }
+            }
 
 
 # ── App setup ─────────────────────────────────────────────────────────────────
@@ -628,5 +644,5 @@ app.add_middleware(
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    if db:
-        await db.close()
+    if pool:
+        await pool.close()
