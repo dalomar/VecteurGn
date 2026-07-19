@@ -3,6 +3,11 @@
 # IDE and editors
 .idea/
 .vscode/
+*.iml
+
+# Claude Code local state
+.claude/settings.local.json
+.claude/*.lock
 
 # Dependencies
 node_modules/
@@ -60,7 +65,7 @@ chainlit.md
 .ac
 
 # Deployment
-.vercel
+k8s/*.local.yaml
 
 # Data and databases
 *.db

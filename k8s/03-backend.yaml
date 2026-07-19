@@ -33,7 +33,7 @@ spec:
                   key: SECRET_KEY
           readinessProbe:
             httpGet:
-              path: /api/auth/me
+              path: /api/health
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 10

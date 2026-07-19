@@ -19,6 +19,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import PeriodSelector from '../components/PeriodSelector';
 import BusSelector from '../components/BusSelector';
+import DateField from '../components/DateField';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   FadeInUp,
@@ -56,6 +57,7 @@ export default function HomeScreen() {
   const [category, setCategory] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [transactionDate, setTransactionDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [currentPeriod, setCurrentPeriod] = useState<Period>('month');
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
@@ -112,13 +114,14 @@ export default function HomeScreen() {
         category,
         amount: parseFloat(amount),
         description,
-        date: new Date().toISOString(),
+        date: new Date(`${transactionDate}T12:00:00`).toISOString(),
       });
 
       setSelectedBusId('');
       setCategory('');
       setAmount('');
       setDescription('');
+      setTransactionDate(new Date().toISOString().slice(0, 10));
       setModalVisible(false);
 
       await refreshDashboard();
@@ -283,6 +286,7 @@ export default function HomeScreen() {
                 onPress={() => {
                   setTransactionType('recette');
                   setCategory('');
+                  setTransactionDate(new Date().toISOString().slice(0, 10));
                   setModalVisible(true);
                 }}
                 onPressIn={() => { recetteScale.value = withSpring(0.94, { damping: 8 }); }}
@@ -299,6 +303,7 @@ export default function HomeScreen() {
                 onPress={() => {
                   setTransactionType('depense');
                   setCategory('');
+                  setTransactionDate(new Date().toISOString().slice(0, 10));
                   setModalVisible(true);
                 }}
                 onPressIn={() => { depenseScale.value = withSpring(0.94, { damping: 8 }); }}
@@ -330,7 +335,7 @@ export default function HomeScreen() {
             ranking.map((item, index) => {
               const busBalance = busBalances.find(b => b.id === item.id);
               const bus = buses.find(b => b.id === item.id);
-              const percentage = bus && bus.dailyTarget > 0 ? (item.revenue / bus.dailyTarget) * 100 : 0;
+              const percentage = item.percentage;
               return (
                 <Animated.View
                   key={item.id}
@@ -342,8 +347,10 @@ export default function HomeScreen() {
                     <View style={styles.rankInfo}>
                       <Text style={styles.rankName}>{item.name}</Text>
                       <Text style={styles.rankRegistration}>Objectif/j: {bus ? formatCurrency(bus.dailyTarget, item.currency) : '-'}</Text>
+                      <Text style={styles.rankRegistration}>Objectif période: {formatCurrency(item.target, item.currency)}</Text>
                     </View>
                     <View style={styles.rankStats}>
+                      <Text style={styles.rankRevenueLabel}>Recettes</Text>
                       <Text style={styles.rankRevenue}>{formatCurrency(item.revenue, item.currency)}</Text>
                       <Text
                         style={[
@@ -449,6 +456,9 @@ export default function HomeScreen() {
                 placeholder="0"
                 placeholderTextColor="#7B818C"
               />
+
+              <Text style={styles.label}>Date *</Text>
+              <DateField value={transactionDate} onChange={setTransactionDate} />
 
               <Text style={styles.label}>Description (optionnel)</Text>
               <TextInput
@@ -754,6 +764,12 @@ const styles = StyleSheet.create({
   },
   rankStats: {
     alignItems: 'flex-end',
+  },
+  rankRevenueLabel: {
+    fontSize: 10,
+    color: '#7B818C',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   rankRevenue: {
     fontSize: 16,

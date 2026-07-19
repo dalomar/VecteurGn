@@ -9,13 +9,13 @@ import {
   TextInput,
   Platform,
   KeyboardAvoidingView,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
+import { confirmDialog } from '../components/confirmDialog';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL + '/api';
 
@@ -144,49 +144,42 @@ export default function UsersScreen() {
     }
   };
 
-  const handleDeleteUser = (user: User) => {
-    Alert.alert(
+  const handleDeleteUser = async (user: User) => {
+    const confirmed = await confirmDialog(
       'Supprimer l\'utilisateur',
-      `Êtes-vous sûr de vouloir supprimer "${user.username}" ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const response = await fetch(`${API_URL}/users/${user.id}`, {
-                method: 'DELETE',
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              });
-
-              if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail);
-              }
-
-              Toast.show({
-                type: 'success',
-                text1: 'Succès',
-                text2: 'Utilisateur supprimé',
-                position: 'top',
-              });
-
-              fetchUsers();
-            } catch (error: any) {
-              Toast.show({
-                type: 'error',
-                text1: 'Erreur',
-                text2: error.message,
-                position: 'top',
-              });
-            }
-          },
-        },
-      ]
+      `Êtes-vous sûr de vouloir supprimer "${user.username}" ?`
     );
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch(`${API_URL}/users/${user.id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail);
+      }
+
+      Toast.show({
+        type: 'success',
+        text1: 'Succès',
+        text2: 'Utilisateur supprimé',
+        position: 'top',
+      });
+
+      fetchUsers();
+    } catch (error: any) {
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: error.message,
+        position: 'top',
+      });
+    }
   };
 
   return (
