@@ -22,7 +22,7 @@ from auth import (
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-DATABASE_URL = os.environ.get('DATABASE_URL')
+DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://localhost/vecteurgn')
 
 pool: asyncpg.Pool = None
 
@@ -200,6 +200,13 @@ async def init_db():
                 str(uuid.uuid4()), "vecteur", get_password_hash("vecteurgn"), "admin", datetime.utcnow().isoformat()
             )
             logger.info("Default admin user created: vecteur")
+
+
+# ── Health ────────────────────────────────────────────────────────────────────
+
+@api_router.get("/health")
+async def health():
+    return {"status": "ok"}
 
 
 # ── Auth Routes ───────────────────────────────────────────────────────────────
@@ -427,8 +434,12 @@ async def get_ranking(
         days_in_period = 1
     elif period == "week":
         if week:
+            # "Semaine N" = la N-ième semaine calendaire (lundi→dimanche) qui
+            # chevauche le mois — pas un simple bloc de 7 jours depuis le 1er,
+            # sinon la semaine affichée ne correspond à aucune semaine réelle.
             first_day = datetime(target_year, target_month, 1)
-            start_date = first_day + timedelta(weeks=week - 1)
+            first_monday = first_day - timedelta(days=first_day.weekday())
+            start_date = first_monday + timedelta(weeks=week - 1)
             end_date = start_date + timedelta(days=7)
         else:
             start_date = now - timedelta(days=now.weekday())
@@ -451,6 +462,20 @@ async def get_ranking(
     start_str = start_date.isoformat()
     end_str = end_date.isoformat()
 
+    # Cible "à date" : on ne compare jamais les recettes déjà encaissées à l'objectif
+    # de toute la période (trop bas en début de période) ni à un seul jour d'objectif
+    # (trop bas dès que plusieurs jours travaillés se sont accumulés) — on compte les
+    # jours ouvrés (hors dimanche) déjà écoulés dans la période, jusqu'à aujourd'hui.
+    period_last_date = (end_date - timedelta(seconds=1)).date()
+    elapsed_last_date = min(now.date(), period_last_date)
+    elapsed_days = 0
+    d = start_date.date()
+    while d <= elapsed_last_date:
+        if d.weekday() < 6:  # Lundi(0)..Samedi(5) travaillés, Dimanche(6) exclu
+            elapsed_days += 1
+        d += timedelta(days=1)
+    elapsed_days = max(elapsed_days, 1)
+
     async with pool.acquire() as conn:
         buses = _rows(await conn.fetch("SELECT * FROM buses"))
         ranking = []
@@ -460,7 +485,7 @@ async def get_ranking(
                 bus["id"], start_str, end_str
             )
             total_recettes = sum(r["amount"] for r in recettes_rows)
-            target = bus["daily_target"] * days_in_period
+            target = bus["daily_target"] * elapsed_days
             percentage = (total_recettes / target * 100) if target > 0 else 0
 
             ranking.append({
@@ -549,8 +574,10 @@ async def get_analytics(
         end_date = start_date + timedelta(days=1)
     elif period == "week":
         if week and month:
+            # Même alignement que /stats/ranking : semaine calendaire lundi→dimanche.
             first_day = datetime(target_year, target_month, 1)
-            start_date = first_day + timedelta(weeks=week - 1)
+            first_monday = first_day - timedelta(days=first_day.weekday())
+            start_date = first_monday + timedelta(weeks=week - 1)
             end_date = start_date + timedelta(days=7)
         else:
             start_date = now - timedelta(days=now.weekday())

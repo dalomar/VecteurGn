@@ -9,13 +9,15 @@ import {
   TextInput,
   Platform,
   KeyboardAvoidingView,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore, Transaction } from '../store';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 import { format } from 'date-fns';
 import { useFocusEffect } from 'expo-router';
+import DateField from '../components/DateField';
+import { confirmDialog } from '../components/confirmDialog';
 
 export default function TransactionsScreen() {
   const [filterBusId, setFilterBusId] = useState('');
@@ -28,6 +30,7 @@ export default function TransactionsScreen() {
   const [category, setCategory] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [transactionDate, setTransactionDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const { transactions, buses, fetchTransactions, fetchBuses, createTransaction, updateTransaction, deleteTransaction } = useStore();
 
@@ -63,6 +66,7 @@ export default function TransactionsScreen() {
     setCategory('');
     setAmount('');
     setDescription('');
+    setTransactionDate(new Date().toISOString().slice(0, 10));
     setModalVisible(true);
   };
 
@@ -72,13 +76,19 @@ export default function TransactionsScreen() {
     setType(transaction.type);
     setCategory(transaction.category);
     setAmount(transaction.amount.toString());
+    setTransactionDate(transaction.date.slice(0, 10));
     setDescription(transaction.description);
     setModalVisible(true);
   };
 
   const handleSubmit = async () => {
     if (!selectedBusId || !category || !amount) {
-      Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires');
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Veuillez remplir tous les champs obligatoires',
+        position: 'top',
+      });
       return;
     }
 
@@ -89,45 +99,63 @@ export default function TransactionsScreen() {
         category,
         amount: parseFloat(amount),
         description,
-        date: new Date().toISOString(),
+        date: new Date(`${transactionDate}T12:00:00`).toISOString(),
       };
 
       if (editingTransaction) {
         await updateTransaction(editingTransaction.id, transactionData);
-        Alert.alert('Succès', 'Transaction modifiée avec succès!');
+        Toast.show({
+          type: 'success',
+          text1: 'Succès',
+          text2: 'Transaction modifiée avec succès!',
+          position: 'top',
+        });
       } else {
         await createTransaction(transactionData);
-        Alert.alert('Succès', 'Transaction ajoutée avec succès!');
+        Toast.show({
+          type: 'success',
+          text1: 'Succès',
+          text2: 'Transaction ajoutée avec succès!',
+          position: 'top',
+        });
       }
 
       setModalVisible(false);
       applyFilters();
     } catch {
-      Alert.alert('Erreur', 'Une erreur est survenue');
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Une erreur est survenue',
+        position: 'top',
+      });
     }
   };
 
-  const handleDelete = (transaction: Transaction) => {
-    Alert.alert(
+  const handleDelete = async (transaction: Transaction) => {
+    const confirmed = await confirmDialog(
       'Supprimer la transaction',
-      'Êtes-vous sûr de vouloir supprimer cette transaction ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteTransaction(transaction.id);
-              Alert.alert('Succès', 'Transaction supprimée avec succès!');
-              applyFilters();
-            } catch {
-              Alert.alert('Erreur', 'Impossible de supprimer la transaction');
-            }
-          },
-        },
-      ]
+      'Êtes-vous sûr de vouloir supprimer cette transaction ?'
     );
+    if (!confirmed) return;
+
+    try {
+      await deleteTransaction(transaction.id);
+      Toast.show({
+        type: 'success',
+        text1: 'Succès',
+        text2: 'Transaction supprimée avec succès!',
+        position: 'top',
+      });
+      applyFilters();
+    } catch {
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible de supprimer la transaction',
+        position: 'top',
+      });
+    }
   };
 
   const getBusName = (busId: string) => {
@@ -401,6 +429,9 @@ export default function TransactionsScreen() {
                 placeholderTextColor="#7B818C"
               />
 
+              <Text style={styles.label}>Date *</Text>
+              <DateField value={transactionDate} onChange={setTransactionDate} />
+
               <Text style={styles.label}>Description (optionnel)</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
@@ -421,6 +452,8 @@ export default function TransactionsScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <Toast />
     </SafeAreaView>
   );
 }

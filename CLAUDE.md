@@ -18,7 +18,7 @@ Les montants sont en **GNF** (Franc Guinéen, grands entiers ~1 000 000) ou **EU
 | Auth | JWT (HS256, 7 jours) + bcrypt via passlib |
 | DB locale | PostgreSQL local (`postgresql://localhost/vecteurgn`) |
 | DB production | PostgreSQL cloud (Neon, Supabase, Railway…) |
-| Déploiement | Vercel (frontend statique Expo + API Python serverless) |
+| Déploiement | Docker + Kubernetes |
 
 ---
 
@@ -43,11 +43,8 @@ backend/
   server.py            — Toutes les routes FastAPI + pool asyncpg global
   auth.py              — JWT + bcrypt helpers
 
-api/
-  index.py             — Entrée Vercel ASGI (importe backend.server.app)
-
-requirements.txt       — Dépendances Python production (pour Vercel)
-vercel.json            — Config déploiement Vercel
+requirements.txt       — Dépendances Python production (pour Docker)
+k8s/                   — Manifests Kubernetes (namespace, secrets, postgres, backend, frontend, ingress)
 ```
 
 ---
@@ -126,15 +123,16 @@ if not deleted:
 
 ---
 
-## Déploiement Vercel
+## Déploiement
 
-### Variables d'environnement à définir dans Vercel → Settings → Environment Variables
+Voir [DEPLOIEMENT_PRODUCTION.md](DEPLOIEMENT_PRODUCTION.md) pour le guide complet (Kubernetes).
+Manifests dans `k8s/`. Variables d'environnement nécessaires :
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | `postgresql://user:pass@host/dbname` (Neon, Supabase, Railway…) |
+| `DATABASE_URL` | `postgresql://user:pass@host/dbname` |
 | `SECRET_KEY` | Clé secrète JWT |
-| `EXPO_PUBLIC_BACKEND_URL` | URL du projet Vercel (ex: `https://vecteurgn.vercel.app`) |
+| `EXPO_PUBLIC_BACKEND_URL` | URL publique de l'API (baked au build du frontend) |
 
 ### Développement local
 
@@ -165,6 +163,6 @@ npx expo start
 
 ## Git
 
-- Branche principale : `develop` (deployée sur Vercel)
+- Branche principale : `develop`
 - Remote : `orign` (non-standard, pas `origin`)
 - Push : `git push orign develop`

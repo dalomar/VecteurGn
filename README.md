@@ -15,7 +15,7 @@ Montants en **GNF** (Franc Guinéen) ou **EUR**.
 | Backend | FastAPI (Python) + asyncpg |
 | Base de données | PostgreSQL (Neon / Supabase / Railway en prod) |
 | Auth | JWT HS256 (7 jours) + bcrypt via passlib |
-| Déploiement | Docker + Kubernetes **ou** Vercel (frontend statique + API serverless) |
+| Déploiement | Docker + Kubernetes |
 
 ---
 
@@ -47,9 +47,6 @@ VecteurGN/
 │   ├── requirements.txt             # Dépendances dev (inclut pandas, pytest…)
 │   └── Dockerfile                   # Image Python 3.12-slim (build depuis la racine)
 │
-├── api/
-│   └── index.py                     # Entrée Vercel ASGI (importe backend.server.app)
-│
 ├── k8s/                             # Manifests Kubernetes
 │   ├── 00-namespace.yaml            # Namespace vecteurgn
 │   ├── 01-secrets.yaml              # DATABASE_URL, SECRET_KEY, POSTGRES_PASSWORD
@@ -58,10 +55,9 @@ VecteurGN/
 │   ├── 04-frontend.yaml             # Deployment nginx/Expo (2 replicas) + Service
 │   └── 05-ingress.yaml              # Ingress nginx : /api/* → backend, /* → frontend
 │
-├── requirements.txt                 # Dépendances Python production (lean, pour Vercel/Docker)
-├── vercel.json                      # Config déploiement Vercel
-├── .vercelignore                    # Exclut backend/requirements.txt du bundle Lambda
+├── requirements.txt                 # Dépendances Python production (lean, pour Docker)
 ├── docker-compose.yml               # Stack locale : Postgres + backend + frontend
+├── DEPLOIEMENT_PRODUCTION.md         # Guide de déploiement en production
 └── CLAUDE.md                        # Instructions pour Claude Code
 ```
 
@@ -156,19 +152,7 @@ kubectl apply -f k8s/
 
 > Prérequis : `nginx-ingress-controller` installé sur le cluster.
 
----
-
-## Déploiement Vercel (frontend statique + API serverless)
-
-Variables à définir dans Vercel → Settings → Environment Variables :
-
-| Variable | Valeur |
-|----------|--------|
-| `DATABASE_URL` | `postgresql://user:pass@host/dbname` |
-| `SECRET_KEY` | Clé JWT secrète |
-| `EXPO_PUBLIC_BACKEND_URL` | URL du projet Vercel (ex: `https://vecteurgn.vercel.app`) |
-
-> Note : la Lambda Python Vercel a une limite de 250 MB. Préférer Kubernetes ou Railway pour le backend si les dépendances dépassent cette limite.
+Voir [DEPLOIEMENT_PRODUCTION.md](DEPLOIEMENT_PRODUCTION.md) pour le guide complet étape par étape.
 
 ---
 
@@ -176,6 +160,7 @@ Variables à définir dans Vercel → Settings → Environment Variables :
 
 | Méthode | Endpoint | Description |
 |---------|----------|-------------|
+| GET | `/api/health` | Health check (sans auth) |
 | POST | `/api/auth/login` | Connexion, retourne JWT |
 | GET | `/api/auth/me` | Profil utilisateur connecté |
 | GET/POST | `/api/buses` | Liste / création de bus |

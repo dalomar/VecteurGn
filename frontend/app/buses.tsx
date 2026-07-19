@@ -9,12 +9,12 @@ import {
   TextInput,
   Platform,
   KeyboardAvoidingView,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore, Bus } from '../store';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
+import { confirmDialog } from '../components/confirmDialog';
 
 export default function BusesScreen() {
   const [modalVisible, setModalVisible] = useState(false);
@@ -101,37 +101,30 @@ export default function BusesScreen() {
     }
   };
 
-  const handleDelete = (bus: Bus) => {
-    Alert.alert(
+  const handleDelete = async (bus: Bus) => {
+    const confirmed = await confirmDialog(
       'Supprimer le bus',
-      `Êtes-vous sûr de vouloir supprimer "${bus.name}" ? Toutes les transactions associées seront également supprimées.`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteBus(bus.id);
-              Toast.show({
-                type: 'success',
-                text1: 'Succès',
-                text2: 'Bus supprimé avec succès!',
-                position: 'top',
-              });
-              fetchBuses();
-            } catch (error) {
-              Toast.show({
-                type: 'error',
-                text1: 'Erreur',
-                text2: 'Impossible de supprimer le bus',
-                position: 'top',
-              });
-            }
-          },
-        },
-      ]
+      `Êtes-vous sûr de vouloir supprimer "${bus.name}" ? Toutes les transactions associées seront également supprimées.`
     );
+    if (!confirmed) return;
+
+    try {
+      await deleteBus(bus.id);
+      Toast.show({
+        type: 'success',
+        text1: 'Succès',
+        text2: 'Bus supprimé avec succès!',
+        position: 'top',
+      });
+      fetchBuses();
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible de supprimer le bus',
+        position: 'top',
+      });
+    }
   };
 
   return (
